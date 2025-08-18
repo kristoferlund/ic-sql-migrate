@@ -1,25 +1,19 @@
 use candid::CandidType;
-use ic_cdk::{call::RejectCode, init, post_upgrade, query, update};
-use ic_rusqlite::{with_connection, Connection};
-use migrations::include_migrations;
+use ic_cdk::{call::RejectCode, post_upgrade, pre_upgrade, query, update};
+use ic_rusqlite::{close_connection, with_connection, Connection};
+use migrations::{include_migrations, Migration};
 use serde::{Deserialize, Serialize};
 
-// Include SQL migrations at compile time from directory
-static MIGRATIONS: &[migrations::SqlMigration] = include_migrations!();
+static MIGRATIONS: &[Migration] = include_migrations!();
 
-#[init]
-fn init() {
-    with_connection(|mut conn| {
-        ic_cdk::println!("INIT");
-        let conn: &mut Connection = &mut conn; // if with_connection returns RefMut
-        migrations::run_up(conn, MIGRATIONS).unwrap();
-    });
+#[pre_upgrade]
+fn pre_upgrade() {
+    close_connection();
 }
 
 #[post_upgrade]
 fn post_upgrade() {
     with_connection(|mut conn| {
-        ic_cdk::println!("POST UPGRADE");
         let conn: &mut Connection = &mut conn; // if with_connection returns RefMut
         migrations::run_up(conn, MIGRATIONS).unwrap();
     });

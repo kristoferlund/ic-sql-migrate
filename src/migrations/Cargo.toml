@@ -5,4 +5,4 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.99"
-ic-rusqlite = { version = "0.3.0" }
+rusqlite = "0.37.0"
