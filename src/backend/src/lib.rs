@@ -1,12 +1,8 @@
-//#[macro_use]
-//extern crate ic_cdk_macros;
-#[macro_use]
-extern crate serde;
-
 use candid::CandidType;
 use ic_cdk::{call::RejectCode, init, post_upgrade, query, update};
 use ic_rusqlite::{with_connection, Connection};
 use migrations::include_migrations;
+use serde::{Deserialize, Serialize};
 
 include_migrations!();
 

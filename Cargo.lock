@@ -522,17 +522,11 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "ic-rusqlite",
- "rusqlite",
 ]
 
 [[package]]
 name = "migrations_build"
 version = "0.0.1"
-dependencies = [
- "anyhow",
- "migrations",
- "rusqlite",
-]
 
 [[package]]
 name = "num-bigint"
