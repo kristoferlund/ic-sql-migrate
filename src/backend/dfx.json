@@ -1,7 +1,7 @@
 {
   "canisters": {
     "backend": {
-      "candid": "can.did",
+      "candid": "backend.did",
       "package": "backend",
       "build": [
         "cargo build --release --target wasm32-wasip1",

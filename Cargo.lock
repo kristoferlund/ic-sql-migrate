@@ -27,6 +27,8 @@ dependencies = [
  "candid",
  "ic-cdk",
  "ic-rusqlite",
+ "migrations",
+ "migrations_build",
  "serde",
  "serde_json",
 ]
@@ -513,6 +515,24 @@ name = "memchr"
 version = "2.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a282da65faaf38286cf3be983213fcf1d2e2a58700e808f83f4ea9a4804bc0"
+
+[[package]]
+name = "migrations"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "ic-rusqlite",
+ "rusqlite",
+]
+
+[[package]]
+name = "migrations_build"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "migrations",
+ "rusqlite",
+]
 
 [[package]]
 name = "num-bigint"

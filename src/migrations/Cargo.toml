@@ -1,0 +1,9 @@
+[package]
+name = "migrations"
+version = "0.0.1"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.99"
+rusqlite = { version = "0.37.0", optional = true }
+ic-rusqlite = { version = "0.3.0", optional = true }

@@ -1,0 +1,9 @@
+[package]
+name = "migrations_build"
+version = "0.0.1"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.99"
+rusqlite = "0.37.0"
+migrations = { path = "../migrations", features = ["local"] }
