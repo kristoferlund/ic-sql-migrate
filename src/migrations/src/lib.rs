@@ -52,32 +52,6 @@ pub fn run_up(conn: &mut Connection, migrations: &[Migration]) -> Result<()> {
 }
 
 #[macro_export]
-macro_rules! include_migrations_from_dir {
-    ($dir:literal, [$($migration_name:literal),* $(,)?]) => {
-        &[
-            $(
-                migrations::Migration::new(
-                    $migration_name,
-                    include_str!(concat!($dir, "/", $migration_name, ".sql"))
-                ),
-            )*
-        ]
-    };
-}
-
-// Keep the old macro for backward compatibility
-#[macro_export]
-macro_rules! include_sql_migrations {
-    ($($id:literal => $path:literal),* $(,)?) => {
-        &[
-            $(
-                migrations::Migration::new($id, include_str!($path)),
-            )*
-        ]
-    };
-}
-
-#[macro_export]
 macro_rules! include_migrations {
     () => {
         include!(concat!(env!("OUT_DIR"), "/migrations_gen.rs"))
