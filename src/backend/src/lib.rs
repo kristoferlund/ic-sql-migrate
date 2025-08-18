@@ -1,14 +1,11 @@
 use candid::CandidType;
 use ic_cdk::{call::RejectCode, init, post_upgrade, query, update};
 use ic_rusqlite::{with_connection, Connection};
-use migrations::include_migrations_from_dir;
+use migrations::include_migrations;
 use serde::{Deserialize, Serialize};
 
-// Include SQL migrations at compile time
-static MIGRATIONS: &[migrations::SqlMigration] = include_migrations_from_dir!(
-    "../migrations_sql",
-    ["m000_initial", "m001_persons_seed", "m002_add_email_column"]
-);
+// Include SQL migrations at compile time from directory
+static MIGRATIONS: &[migrations::SqlMigration] = include_migrations!();
 
 #[init]
 fn init() {

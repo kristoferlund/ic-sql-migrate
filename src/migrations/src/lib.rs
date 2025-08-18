@@ -76,3 +76,10 @@ macro_rules! include_sql_migrations {
         ]
     };
 }
+
+#[macro_export]
+macro_rules! include_migrations {
+    () => {
+        include!(concat!(env!("OUT_DIR"), "/migrations_gen.rs"))
+    };
+}
