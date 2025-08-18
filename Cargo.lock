@@ -28,7 +28,6 @@ dependencies = [
  "ic-cdk",
  "ic-rusqlite",
  "migrations",
- "migrations_build",
  "serde",
  "serde_json",
 ]
@@ -523,10 +522,6 @@ dependencies = [
  "anyhow",
  "ic-rusqlite",
 ]
-
-[[package]]
-name = "migrations_build"
-version = "0.0.1"
 
 [[package]]
 name = "num-bigint"

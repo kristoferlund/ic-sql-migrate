@@ -1,17 +1,21 @@
 use candid::CandidType;
 use ic_cdk::{call::RejectCode, init, post_upgrade, query, update};
 use ic_rusqlite::{with_connection, Connection};
-use migrations::include_migrations;
+use migrations::include_migrations_from_dir;
 use serde::{Deserialize, Serialize};
 
-include_migrations!();
+// Include SQL migrations at compile time
+static MIGRATIONS: &[migrations::SqlMigration] = include_migrations_from_dir!(
+    "../migrations_sql",
+    ["m000_initial", "m001_persons_seed", "m002_add_email_column"]
+);
 
 #[init]
 fn init() {
     with_connection(|mut conn| {
         ic_cdk::println!("INIT");
         let conn: &mut Connection = &mut conn; // if with_connection returns RefMut
-        migrations::run_up(conn, list_migrations()).unwrap();
+        migrations::run_up(conn, MIGRATIONS).unwrap();
     });
 }
 
@@ -20,28 +24,8 @@ fn post_upgrade() {
     with_connection(|mut conn| {
         ic_cdk::println!("POST UPGRADE");
         let conn: &mut Connection = &mut conn; // if with_connection returns RefMut
-        migrations::run_up(conn, list_migrations()).unwrap();
+        migrations::run_up(conn, MIGRATIONS).unwrap();
     });
-}
-
-#[update]
-fn create() -> Result {
-    with_connection(|conn| {
-        // create database table
-        match conn.execute(
-            "CREATE TABLE IF NOT EXISTS person (
-            id   INTEGER PRIMARY KEY,
-            name TEXT NOT NULL,
-            age INTEGER
-        )",
-            [],
-        ) {
-            Ok(e) => Ok(format!("{:?}", e)),
-            Err(err) => Err(Error::CanisterError {
-                message: format!("{:?}", err),
-            }),
-        }
-    })
 }
 
 #[query]

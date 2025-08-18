@@ -1,10 +1,16 @@
 pub use anyhow::Result;
 use ic_rusqlite::Connection;
+use std::collections::HashSet;
 
-pub trait Migration: Sync {
-    fn id(&self) -> &'static str;
-    fn up(&self, conn: &mut Connection) -> Result<()>;
-    fn down(&self, conn: &mut Connection) -> Result<()>;
+pub struct SqlMigration {
+    pub id: &'static str,
+    pub sql: &'static str,
+}
+
+impl SqlMigration {
+    pub const fn new(id: &'static str, sql: &'static str) -> Self {
+        Self { id, sql }
+    }
 }
 
 fn ensure_table(conn: &mut Connection) -> Result<()> {
@@ -15,28 +21,58 @@ fn ensure_table(conn: &mut Connection) -> Result<()> {
     Ok(())
 }
 
-fn applied(conn: &Connection) -> Result<std::collections::HashSet<String>> {
+fn applied(conn: &Connection) -> Result<HashSet<String>> {
     let mut s = conn.prepare("SELECT id FROM _migrations")?;
     let rows = s.query_map([], |r| r.get::<_, String>(0))?;
     Ok(rows.filter_map(Result::ok).collect())
 }
 
-pub fn run_up(conn: &mut Connection, migs: &[&dyn Migration]) -> Result<()> {
+pub fn run_up(conn: &mut Connection, migrations: &[SqlMigration]) -> Result<()> {
     ensure_table(conn)?;
     let seen = applied(conn)?;
-    for m in migs {
-        if seen.contains(m.id()) {
+
+    // Start transaction for all migrations
+    let tx = conn.transaction()?;
+
+    for migration in migrations {
+        if seen.contains(migration.id) {
             continue;
         }
-        m.up(conn)?;
-        conn.execute("INSERT INTO _migrations(id) VALUES (?)", [m.id()])?;
+
+        // Execute the SQL
+        tx.execute_batch(migration.sql)?;
+
+        // Record migration as applied
+        tx.execute("INSERT INTO _migrations(id) VALUES (?)", [migration.id])?;
     }
+
+    // Commit all migrations
+    tx.commit()?;
     Ok(())
 }
 
 #[macro_export]
-macro_rules! include_migrations {
-    () => {
-        include!(concat!(env!("OUT_DIR"), "/migrations_gen.rs"));
+macro_rules! include_migrations_from_dir {
+    ($dir:literal, [$($migration_name:literal),* $(,)?]) => {
+        &[
+            $(
+                migrations::SqlMigration::new(
+                    $migration_name,
+                    include_str!(concat!($dir, "/", $migration_name, ".sql"))
+                ),
+            )*
+        ]
+    };
+}
+
+// Keep the old macro for backward compatibility
+#[macro_export]
+macro_rules! include_sql_migrations {
+    ($($id:literal => $path:literal),* $(,)?) => {
+        &[
+            $(
+                migrations::SqlMigration::new($id, include_str!($path)),
+            )*
+        ]
     };
 }

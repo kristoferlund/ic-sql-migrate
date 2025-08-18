@@ -1,6 +1,6 @@
 #!/bin/sh
 
-dfx canister call backend create
+
 
 dfx canister call backend insert '(record {name = "person1"; age = 23})'
 
