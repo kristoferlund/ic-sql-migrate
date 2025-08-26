@@ -1,13 +1,11 @@
 import useQueryPersons from "@/hooks/use-query-persons";
 import useDeletePerson from "@/hooks/use-delete-person";
 import useUpdatePerson from "@/hooks/use-update-person";
-import useCreateDb from "@/hooks/use-create-db";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Trash2, Database, UserPlus, Edit2, Check, X } from "lucide-react";
+import { Trash2, UserPlus, Edit2, Check, X } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import SampleDataButton from "./sample-data-button";
 
 interface Person {
   id: number;
@@ -19,7 +17,6 @@ export default function Persons() {
   const { data: result, isSuccess, isLoading, error } = useQueryPersons();
   const deletePerson = useDeletePerson();
   const updatePerson = useUpdatePerson();
-  const createDb = useCreateDb();
   const [persons, setPersons] = useState<Person[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
@@ -71,13 +68,6 @@ export default function Persons() {
     }
   };
 
-  const handleCreateDb = async () => {
-    try {
-      await createDb.mutateAsync();
-    } catch (error) {
-      console.error("Failed to create database:", error);
-    }
-  };
 
   if (isLoading) {
     return <div className="text-white/70">Loading persons...</div>;
@@ -87,15 +77,6 @@ export default function Persons() {
     return (
       <div className="flex flex-col gap-4 items-center">
         <div className="text-red-400">Failed to load persons</div>
-        <Button
-          onClick={handleCreateDb}
-          variant="outline"
-          className="gap-2"
-          disabled={createDb.isPending}
-        >
-          <Database className="h-4 w-4" />
-          {createDb.isPending ? "Creating..." : "Initialize Database"}
-        </Button>
       </div>
     );
   }
@@ -110,15 +91,6 @@ export default function Persons() {
         <div className="text-red-400">
           Error: Database might not be initialized
         </div>
-        <Button
-          onClick={handleCreateDb}
-          variant="outline"
-          className="gap-2"
-          disabled={createDb.isPending}
-        >
-          <Database className="h-4 w-4" />
-          {createDb.isPending ? "Creating..." : "Initialize Database"}
-        </Button>
       </div>
     );
   }
@@ -138,7 +110,6 @@ export default function Persons() {
       {persons.length === 0 ? (
         <div className="text-center py-8 text-white/70 flex flex-col gap-4 items-center">
           <div>No persons found. Add your first person!</div>
-          <SampleDataButton />
         </div>
       ) : (
         <div className="bg-white/10 rounded-lg overflow-hidden">
@@ -163,7 +134,7 @@ export default function Persons() {
                       <Input
                         type="text"
                         value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
+                        onChange={(e) => { setEditName(e.target.value); }}
                         className="bg-white/10 border-white/20 text-white h-8"
                         autoFocus
                         onKeyDown={(e) => {
@@ -204,7 +175,7 @@ export default function Persons() {
                     ) : (
                       <div className="flex gap-2 justify-end">
                         <Button
-                          onClick={() => handleEdit(person)}
+                          onClick={() => { handleEdit(person); }}
                           variant="ghost"
                           size="icon"
                           className="hover:bg-blue-500/20 hover:text-blue-300"
