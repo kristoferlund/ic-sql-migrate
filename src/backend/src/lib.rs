@@ -1,10 +1,22 @@
 use candid::CandidType;
-use ic_cdk::{call::RejectCode, post_upgrade, pre_upgrade, query, update};
+use ic_cdk::{call::RejectCode, init, post_upgrade, pre_upgrade, query, update};
 use ic_rusqlite::{close_connection, with_connection, Connection};
 use migrations::{include_migrations, Migration};
 use serde::{Deserialize, Serialize};
 
 static MIGRATIONS: &[Migration] = include_migrations!();
+
+fn run_migrations() {
+    with_connection(|mut conn| {
+        let conn: &mut Connection = &mut conn; // if with_connection returns RefMut
+        migrations::run_up(conn, MIGRATIONS).unwrap();
+    });
+}
+
+#[init]
+fn init() {
+    run_migrations();
+}
 
 #[pre_upgrade]
 fn pre_upgrade() {
@@ -13,10 +25,7 @@ fn pre_upgrade() {
 
 #[post_upgrade]
 fn post_upgrade() {
-    with_connection(|mut conn| {
-        let conn: &mut Connection = &mut conn; // if with_connection returns RefMut
-        migrations::run_up(conn, MIGRATIONS).unwrap();
-    });
+    run_migrations();
 }
 
 #[query]
