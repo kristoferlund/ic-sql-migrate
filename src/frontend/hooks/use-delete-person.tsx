@@ -5,8 +5,8 @@ export default function useDeletePerson() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: bigint) => {
-      return backend.delete(id);
+    mutationFn: (id: number) => {
+      return backend.person_delete(id);
     },
     onSuccess: () => {
       // Invalidate and refetch persons list after successful deletion

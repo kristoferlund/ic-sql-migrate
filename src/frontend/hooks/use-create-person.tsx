@@ -3,7 +3,7 @@ import { backend } from "../../backend/declarations/index";
 
 interface PersonInput {
   name: string;
-  age: bigint;
+  age: number;
 }
 
 export default function useCreatePerson() {
@@ -11,7 +11,7 @@ export default function useCreatePerson() {
 
   return useMutation({
     mutationFn: (person: PersonInput) => {
-      return backend.insert(person);
+      return backend.person_create(person);
     },
     onSuccess: () => {
       // Invalidate and refetch persons list after successful creation

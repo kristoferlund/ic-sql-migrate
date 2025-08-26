@@ -43,7 +43,7 @@ function AddPerson() {
     try {
       await createPerson.mutateAsync({
         name: name.trim(),
-        age: BigInt(age),
+        age: Number.parseInt(age),
       });
 
       // Navigate back to home page after successful creation
@@ -76,7 +76,7 @@ function AddPerson() {
             id="name"
             type="text"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => { setName(e.target.value); }}
             placeholder="Enter person's name"
             className="bg-white/10 border-white/20 text-white placeholder:text-white/50"
             aria-invalid={!!errors.name}
@@ -94,7 +94,7 @@ function AddPerson() {
             id="age"
             type="number"
             value={age}
-            onChange={(e) => setAge(e.target.value)}
+            onChange={(e) => { setAge(e.target.value); }}
             placeholder="Enter person's age"
             className="bg-white/10 border-white/20 text-white placeholder:text-white/50"
             min="0"

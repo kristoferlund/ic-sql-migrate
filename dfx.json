@@ -7,10 +7,9 @@
         "output": "src/backend/declarations"
       },
       "build": [
-        "cargo build --release --target wasm32-wasip1",
-        "wasi2ic target/wasm32-wasip1/release/backend.wasm target/wasm32-wasip1/release/backend_nowasi.wasm"
+        "bash scripts/build-backend.sh"
       ],
-      "wasm": "target/wasm32-wasip1/release/backend_nowasi.wasm",
+      "wasm": "target/wasm32-wasip1/release/backend_wasi2ic.wasm",
       "type": "custom",
       "metadata": [
         {
@@ -19,8 +18,12 @@
       ]
     },
     "frontend": {
-      "dependencies": ["backend"],
-      "source": ["src/frontend/dist"],
+      "dependencies": [
+        "backend"
+      ],
+      "source": [
+        "src/frontend/dist"
+      ],
       "type": "assets",
       "declarations": {
         "output": "src/frontend/declarations"

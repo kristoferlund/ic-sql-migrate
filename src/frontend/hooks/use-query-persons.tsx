@@ -5,7 +5,7 @@ export default function useQueryPersons() {
   return useQuery({
     queryKey: ["query_persons"],
     queryFn: () => {
-      return backend.query({ limit: 10n, offset: 0n })
+      return backend.person_query({ limit: 10, offset: 0 })
     }
   }
 

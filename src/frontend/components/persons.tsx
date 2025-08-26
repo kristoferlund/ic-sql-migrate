@@ -24,8 +24,7 @@ export default function Persons() {
   useEffect(() => {
     if (result && "Ok" in result) {
       try {
-        const parsedPersons = JSON.parse(result.Ok);
-        setPersons(parsedPersons);
+        setPersons(result.Ok);
       } catch (e) {
         console.error("Failed to parse persons:", e);
         setPersons([]);
@@ -35,7 +34,7 @@ export default function Persons() {
 
   const handleDelete = async (id: number) => {
     try {
-      await deletePerson.mutateAsync(BigInt(id));
+      await deletePerson.mutateAsync(id);
     } catch (error) {
       console.error("Failed to delete person:", error);
     }
@@ -58,7 +57,7 @@ export default function Persons() {
 
     try {
       await updatePerson.mutateAsync({
-        id: BigInt(editingId!),
+        id: editingId!,
         name: editName.trim(),
       });
       setEditingId(null);
