@@ -140,7 +140,7 @@ pub fn up(conn: &mut Connection, migrations: &[Migration]) -> MigrateResult<()> 
 ///
 /// # Example
 /// ```ignore
-/// static MIGRATIONS: &[migrations::Migration] = migrations::include!();
+/// static MIGRATIONS: &[migrations::Migration] = ic_sql_migrate::include!();
 /// ```
 #[macro_export]
 macro_rules! include {

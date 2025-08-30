@@ -13,9 +13,14 @@ A lightweight SQLite migration library for Internet Computer (ICP) canisters, pr
 
 ### 1. Add migrations crate to Cargo.toml
 
+The dependency needs to be added to `[build-dependencies]` as well, since it is used from the `build.rs` build script.
+
 ```toml
 [dependencies]
-migrations = "0.0.1" 
+ic-sql-migrate = "0.0.1" 
+
+[build-dependencies]
+ic-sql-migrate = "0.0.1" 
 ```
 
 ### 2. Create migration files
@@ -38,7 +43,7 @@ List all migration files in a specified folder (defaults to `migrations`) to mak
 ```rust
 // build.rs
 fn main() {
-    migrations::list(Some("migrations")).unwrap();
+    ic_sql_migrate::list(Some("migrations")).unwrap();
 }
 ```
 
@@ -48,12 +53,12 @@ fn main() {
 use ic_cdk::{init, post_upgrade, pre_upgrade};
 use ic_rusqlite::{close_connection, with_connection, Connection};
 
-static MIGRATIONS: &[migrations::Migration] = migrations::include!();
+static MIGRATIONS: &[ic_sql_migrate::Migration] = ic_sql_migrate::include!();
 
 fn run_migrations() {
     with_connection(|mut conn| {
         let conn: &mut Connection = &mut conn;
-        migrations::up(conn, MIGRATIONS).unwrap();
+        ic_sql_migrate::up(conn, MIGRATIONS).unwrap();
     });
 }
 
@@ -85,15 +90,15 @@ See the [SQLite Example](./examples/sqlite/README.md) for a complete implementat
 
 ## API Reference
 
-### `migrations::list(migrations_dir_name: Option<&str>) -> std::io::Result<()>`
+### `ic_sql_migrate::list(migrations_dir_name: Option<&str>) -> std::io::Result<()>`
 
 To make all SQL migration files automatically available to the `include!()` macro, this function should be called in the `build.rs` of the integrating canister.  
 
-### `migrations::include!()`
+### `ic_sql_migrate::include!()`
 
 Macro to include all the migration files that the `list()` function listed. 
 
-### `migrations::up(conn: &mut Connection, migrations: &[Migration]) -> Result<()>`
+### `ic_sql_migrate::up(conn: &mut Connection, ic_sql_migrate: &[Migration]) -> Result<()>`
 
 Executes all pending migrations in order.
 
