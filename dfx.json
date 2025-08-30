@@ -1,33 +1,21 @@
 {
   "canisters": {
-    "backend": {
-      "candid": "src/backend/backend.did",
-      "package": "backend",
+    "sqlite": {
+      "candid": "examples/sqlite/sqlite.did",
+      "package": "sqlite",
       "declarations": {
-        "output": "src/backend/declarations"
+        "output": "examples/sqlite/declarations"
       },
       "build": [
-        "bash scripts/build-backend.sh"
+        "bash scripts/build-sqlite.sh"
       ],
-      "wasm": "target/wasm32-wasip1/release/backend_wasi2ic.wasm",
+      "wasm": "target/wasm32-wasip1/release/sqlite_wasi2ic.wasm",
       "type": "custom",
       "metadata": [
         {
           "name": "candid:service"
         }
       ]
-    },
-    "frontend": {
-      "dependencies": [
-        "backend"
-      ],
-      "source": [
-        "src/frontend/dist"
-      ],
-      "type": "assets",
-      "declarations": {
-        "output": "src/frontend/declarations"
-      }
     }
   },
   "defaults": {

@@ -1,5 +1,5 @@
 [package]
-name = "backend"
+name = "sqlite"
 version = "0.1.0"
 edition = "2021"
 
@@ -12,7 +12,9 @@ ic-cdk = "0.18.5"
 ic-rusqlite = "0.3.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"
-migrations = { path = "../migrations" }
+migrations = { path = "../../packages/migrations" }
+validator = "0.20.0"
+validator_derive = "0.20.0"
 
 [build-dependencies]
-migrations = { path = "../migrations" }
+migrations = { path = "../../packages/migrations" }

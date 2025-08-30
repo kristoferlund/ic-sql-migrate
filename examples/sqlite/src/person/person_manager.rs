@@ -1,11 +1,11 @@
 use ic_rusqlite::with_connection;
 
-use super::person_types::{Person, PersonInput, QueryParams, UpdateParams};
+use super::person_types::{Person, PersonCreateDto, QueryParams, UpdateParams};
 
 pub struct PersonManager {}
 
 impl PersonManager {
-    pub fn create(person: PersonInput) -> Result<Person, String> {
+    pub fn create(person: Person) -> Result<Person, String> {
         with_connection(|conn| {
             let person = conn
                 .query_row(
@@ -20,12 +20,6 @@ impl PersonManager {
                     },
                 )
                 .map_err(|err| format!("{err}"))?;
-
-            // conn.execute(
-            //     "INSERT INTO person (name, age) values (?1, ?2);",
-            //     (&person.name, person.age),
-            // )
-            // .map_err(|err| format!("{err:?}"))?;
 
             Ok(person)
         })
