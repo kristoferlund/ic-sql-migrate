@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS person (
     id   INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 50)
+    name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 50),
     age INTEGER
 );

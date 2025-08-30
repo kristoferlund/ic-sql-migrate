@@ -27,7 +27,7 @@ fn applied(conn: &Connection) -> Result<HashSet<String>> {
     Ok(rows.filter_map(Result::ok).collect())
 }
 
-pub fn run_up(conn: &mut Connection, migrations: &[Migration]) -> Result<()> {
+pub fn up(conn: &mut Connection, migrations: &[Migration]) -> Result<()> {
     ensure_table(conn)?;
     let seen = applied(conn)?;
 
@@ -52,7 +52,7 @@ pub fn run_up(conn: &mut Connection, migrations: &[Migration]) -> Result<()> {
 }
 
 #[macro_export]
-macro_rules! include_migrations {
+macro_rules! include {
     () => {
         include!(concat!(env!("OUT_DIR"), "/migrations_gen.rs"))
     };

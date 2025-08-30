@@ -1,18 +1,12 @@
-use ic_cdk::export_candid;
-use ic_cdk::{init, post_upgrade, pre_upgrade};
+use ic_cdk::{init, post_upgrade, pre_upgrade, query};
 use ic_rusqlite::{close_connection, with_connection, Connection};
-use migrations::{include_migrations, Migration};
 
-use person::person_types::*;
-
-mod person;
-
-static MIGRATIONS: &[Migration] = include_migrations!();
+static MIGRATIONS: &[migrations::Migration] = migrations::include!();
 
 fn run_migrations() {
     with_connection(|mut conn| {
-        let conn: &mut Connection = &mut conn; // if with_connection returns RefMut
-        migrations::run_up(conn, MIGRATIONS).unwrap();
+        let conn: &mut Connection = &mut conn;
+        migrations::up(conn, MIGRATIONS).unwrap();
     });
 }
 
@@ -31,4 +25,42 @@ fn post_upgrade() {
     run_migrations();
 }
 
-export_candid!();
+#[query]
+fn run() -> String {
+    ic_cdk::println!("Starting migration verification...");
+
+    let migration_count = with_connection(|mut conn| {
+        let conn: &mut Connection = &mut conn;
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0))
+            .unwrap_or(0);
+        count
+    });
+
+    ic_cdk::println!("Migrations executed: {}", migration_count);
+
+    let total_migrations = MIGRATIONS.len() as i64;
+    if migration_count == total_migrations {
+        ic_cdk::println!("All {} migrations have run successfully.", total_migrations);
+
+        let person_count = with_connection(|mut conn| {
+            let conn: &mut Connection = &mut conn;
+            let count: i64 = conn
+                .query_row("SELECT COUNT(*) FROM person", [], |row| row.get(0))
+                .unwrap_or(0);
+            count
+        });
+
+        ic_cdk::println!("Found {} records in person table.", person_count);
+        format!(
+            "Success: All {total_migrations} migrations executed. {person_count} persons in database."
+        )
+    } else {
+        ic_cdk::println!(
+            "Migration verification failed: {} out of {} migrations executed.",
+            migration_count,
+            total_migrations
+        );
+        format!("Error: Only {migration_count} out of {total_migrations} migrations executed.")
+    }
+}
