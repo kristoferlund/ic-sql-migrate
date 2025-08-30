@@ -508,8 +508,8 @@ checksum = "32a282da65faaf38286cf3be983213fcf1d2e2a58700e808f83f4ea9a4804bc0"
 name = "migrations"
 version = "0.0.1"
 dependencies = [
- "anyhow",
  "rusqlite",
+ "thiserror 2.0.16",
 ]
 
 [[package]]

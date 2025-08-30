@@ -108,7 +108,7 @@ migrations/
   002_seed_data.sql
 ```
 
-Files are executed in numerical order and tracked in the `migrations` table.
+Files are executed in numerical order and tracked in the `_migrations` table.
 
 ## License
 

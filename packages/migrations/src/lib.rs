@@ -1,7 +1,19 @@
-pub use anyhow::Result;
 use rusqlite::Connection;
-use std::collections::HashSet;
+use std::{collections::HashSet, env, fs, path::Path};
+use thiserror::Error;
 
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error(transparent)]
+    Sql(#[from] rusqlite::Error),
+
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+}
+
+pub type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Debug, Clone, Copy)]
 pub struct Migration {
     pub id: &'static str,
     pub sql: &'static str,
@@ -13,40 +25,32 @@ impl Migration {
     }
 }
 
-fn ensure_table(conn: &mut Connection) -> Result<()> {
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS _migrations (id TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)",
+pub fn up(conn: &mut Connection, migrations: &[Migration]) -> Result<()> {
+    let tx = conn.transaction()?;
+    tx.execute(
+        "CREATE TABLE IF NOT EXISTS _migrations (
+           id TEXT PRIMARY KEY,
+           applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+         )",
         [],
     )?;
-    Ok(())
-}
+    let seen = {
+        let mut s = tx.prepare("SELECT id FROM _migrations")?;
+        let rows = s.query_map([], |r| r.get::<_, String>(0))?;
+        let mut set = HashSet::new();
+        for row in rows {
+            set.insert(row?);
+        }
+        set
+    };
 
-fn applied(conn: &Connection) -> Result<HashSet<String>> {
-    let mut s = conn.prepare("SELECT id FROM _migrations")?;
-    let rows = s.query_map([], |r| r.get::<_, String>(0))?;
-    Ok(rows.filter_map(Result::ok).collect())
-}
-
-pub fn up(conn: &mut Connection, migrations: &[Migration]) -> Result<()> {
-    ensure_table(conn)?;
-    let seen = applied(conn)?;
-
-    // Start transaction for all migrations
-    let tx = conn.transaction()?;
-
-    for migration in migrations {
-        if seen.contains(migration.id) {
+    for m in migrations {
+        if seen.contains(m.id) {
             continue;
         }
-
-        // Execute the SQL
-        tx.execute_batch(migration.sql)?;
-
-        // Record migration as applied
-        tx.execute("INSERT INTO _migrations(id) VALUES (?)", [migration.id])?;
+        tx.execute_batch(m.sql)?;
+        tx.execute("INSERT INTO _migrations(id) VALUES (?)", [m.id])?;
     }
-
-    // Commit all migrations
     tx.commit()?;
     Ok(())
 }
@@ -60,11 +64,7 @@ macro_rules! include {
 
 ///
 pub fn list(migrations_dir_name: Option<&str>) -> std::io::Result<()> {
-    use std::env;
-    use std::fs;
-    use std::path::Path;
-
-    let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
     let dir_name = migrations_dir_name.unwrap_or("migrations");
     let migrations_dir = Path::new(&manifest_dir).join(dir_name);
 
@@ -72,7 +72,7 @@ pub fn list(migrations_dir_name: Option<&str>) -> std::io::Result<()> {
 
     // If migrations directory doesn't exist, create empty migrations
     if !migrations_dir.exists() {
-        let out_dir = env::var("OUT_DIR").unwrap();
+        let out_dir = env::var("OUT_DIR").expect("OUT_DIR not set");
         let dest_path = Path::new(&out_dir).join("migrations_gen.rs");
         fs::write(dest_path, "&[]")?;
         return Ok(());
@@ -100,22 +100,19 @@ pub fn list(migrations_dir_name: Option<&str>) -> std::io::Result<()> {
     migration_files.sort_by(|a, b| a.0.cmp(&b.0));
 
     // Generate Rust code
-    let mut generated_code = String::new();
-    generated_code.push_str("&[\n");
-
-    for (migration_id, file_path) in migration_files {
-        generated_code.push_str(&format!(
-            "    migrations::Migration::new(\"{migration_id}\", include_str!(\"{file_path}\")),\n"
+    let mut generated = String::from("&[\n");
+    for (id, path) in migration_files {
+        // Raw string literal avoids escaping issues
+        generated.push_str(&format!(
+            "    ::migrations::Migration::new(\"{id}\", include_str!(r#\"{path}\"#)),\n"
         ));
     }
-
-    generated_code.push_str("]\n");
+    generated.push_str("]\n");
 
     // Write generated code to OUT_DIR
     let out_dir = env::var("OUT_DIR").unwrap();
     let dest_path = Path::new(&out_dir).join("migrations_gen.rs");
-    println!("{}", generated_code);
-    fs::write(dest_path, generated_code)?;
+    fs::write(dest_path, generated)?;
 
     Ok(())
 }
