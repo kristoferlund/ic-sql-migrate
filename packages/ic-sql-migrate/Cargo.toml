@@ -1,0 +1,15 @@
+[package]
+name = "ic-sql-migrate"
+version = "0.0.1"
+edition = "2021"
+description = "A lightweight SQLite migration library for Internet Computer (ICP) canisters."
+authors = ["Kristofer Lund"]
+license = "MIT"
+repository = "https://github.com/kristoferlund/ic-sql-migrate"
+homepage = "https://github.com/kristoferlund/ic-sql-migrate"
+keywords = ["sqlite", "migration", "icp", "internet-computer", "database"]
+categories = ["database", "development-tools"]
+
+[dependencies]
+rusqlite = "0.37.0"
+thiserror = "2.0.16"

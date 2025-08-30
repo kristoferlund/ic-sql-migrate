@@ -1,3 +1,3 @@
 fn main() {
-    migrations::list(Some("migrations")).unwrap();
+    ic_sql_migrate::list(Some("migrations")).unwrap();
 }

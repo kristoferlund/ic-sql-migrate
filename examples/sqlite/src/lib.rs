@@ -1,12 +1,12 @@
 use ic_cdk::{init, post_upgrade, pre_upgrade, query};
 use ic_rusqlite::{close_connection, with_connection, Connection};
 
-static MIGRATIONS: &[migrations::Migration] = migrations::include!();
+static MIGRATIONS: &[ic_sql_migrate::Migration] = ic_sql_migrate::include!();
 
 fn run_migrations() {
     with_connection(|mut conn| {
         let conn: &mut Connection = &mut conn;
-        migrations::up(conn, MIGRATIONS).unwrap();
+        ic_sql_migrate::up(conn, MIGRATIONS).unwrap();
     });
 }
 

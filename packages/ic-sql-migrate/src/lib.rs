@@ -249,7 +249,7 @@ fn generate_migrations_code(migration_files: &[(String, String)]) -> String {
 
     for (migration_id, file_path) in migration_files {
         code.push_str(&format!(
-            "    migrations::Migration::new(\"{migration_id}\", include_str!(\"{file_path}\")),\n"
+            "    ic_sql_migrate::Migration::new(\"{migration_id}\", include_str!(\"{file_path}\")),\n"
         ));
     }
 

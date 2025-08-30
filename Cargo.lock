@@ -417,6 +417,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "ic-sql-migrate"
+version = "0.0.1"
+dependencies = [
+ "rusqlite",
+ "thiserror 2.0.16",
+]
+
+[[package]]
 name = "ic-stable-structures"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -503,14 +511,6 @@ name = "memchr"
 version = "2.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a282da65faaf38286cf3be983213fcf1d2e2a58700e808f83f4ea9a4804bc0"
-
-[[package]]
-name = "migrations"
-version = "0.0.1"
-dependencies = [
- "rusqlite",
- "thiserror 2.0.16",
-]
 
 [[package]]
 name = "num-bigint"
@@ -750,7 +750,7 @@ dependencies = [
  "candid",
  "ic-cdk",
  "ic-rusqlite",
- "migrations",
+ "ic-sql-migrate",
 ]
 
 [[package]]
