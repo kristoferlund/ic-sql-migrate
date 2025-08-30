@@ -1,20 +1,16 @@
 [package]
 name = "sqlite"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
 
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
-candid = "0.10.14"
-ic-cdk = "0.18.5"
-ic-rusqlite = "0.3.0"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1.0"
+candid = "0.10.17"
+ic-cdk = "0.18.7"
+ic-rusqlite = "0.3.1"
 migrations = { path = "../../packages/migrations" }
-validator = "0.20.0"
-validator_derive = "0.20.0"
 
 [build-dependencies]
 migrations = { path = "../../packages/migrations" }

@@ -58,8 +58,8 @@ macro_rules! include {
     };
 }
 
-/// Build-time function to generate migrations from SQL files in a directory
-pub fn generate_migrations(migrations_dir_name: Option<&str>) -> std::io::Result<()> {
+///
+pub fn list(migrations_dir_name: Option<&str>) -> std::io::Result<()> {
     use std::env;
     use std::fs;
     use std::path::Path;
@@ -114,6 +114,7 @@ pub fn generate_migrations(migrations_dir_name: Option<&str>) -> std::io::Result
     // Write generated code to OUT_DIR
     let out_dir = env::var("OUT_DIR").unwrap();
     let dest_path = Path::new(&out_dir).join("migrations_gen.rs");
+    println!("{}", generated_code);
     fs::write(dest_path, generated_code)?;
 
     Ok(())

@@ -1,138 +1,119 @@
-# ICP + React + TypeScript + Vite + Tailwind + Shadcn/UI + Tanstack Query/Router
+# ICP SQLite Migration Library
 
-This template provides a batteries included setup for an ICP/React application with the latest versions of Vite, TypeScript, Tailwind CSS, Shadcn/UI, SWC, Eslint and Tanstack Query/Router.
-
-> [!TIP]
-> Fork this repository as a starting point for your next ICP project.
->
-> Live demo: <https://upacy-bqaaa-aaaal-qr7qa-cai.icp0.io>
-
-> [!TIP]
-> This template is also available in a version using [ic-reactor](https://www.npmjs.com/package/@ic-reactor/react) instead of Tanstack Query. Check out that version from the [ic-reactor branch](https://github.com/kristoferlund/ic-vite-react-next/tree/ic-reactor).
-
-[![Contributors][contributors-shield]][contributors-url]
-[![Forks][forks-shield]][forks-url]
-[![Stargazers][stars-shield]][stars-url]
-[![Issues][issues-shield]][issues-url]
-[![MIT License][license-shield]](LICENSE)
-
-![](./media/screenshot.png)
+A lightweight SQLite migration library for Internet Computer (ICP) canisters, providing automatic database schema management and version control.
 
 ## Features
 
-### Backend
+- **Automatic Migration Execution**: Runs migrations automatically on canister startup and upgrade
+- **Version Tracking**: Maintains a `_migrations` table to track executed migrations
+- **Simple API**: Minimal setup with `load()`, `include!()` and `up()` functions
+- **SQLite Integration**: Built on `ic_rusqlite` for seamless SQLite database operations
 
-The Rust based backend exposes one endpoint only, the `greet` function that returns a greeting message.
+## Quick Start
 
-### Frontend
+### 1. Add migrations crate to Cargo.toml
 
-The React/Vite/TS based frontend allows the user to input a name and click a button to fetch the greeting message from the backend.
-
-Dependencies:
-
-- [React 19](https://react.dev): The long awaited upgrade brings form actions, optimistic UI updates while mutating, etc etc.
-- [Vite 6](https://vite.dev/): The most significant major release since Vite 2, featuring a new Environment API for enhanced flexibility, extended framework support, and streamlined performance for modern web development.
-- [Tailwind 4](https://tailwindcss.com/docs/v4-beta): The new version of Tailwind CSS is a ground-up rewrite of the framework, providing faster builds, great new CSS classes and better performance.
-- [Tanstack Query 5](https://tanstack.com/query/latest): The template uses Tanstack Query for data fetching, caching and loading state management.
-- [Tanstack Router](https://tanstack.com/router/latest): Modern and scalable routing for React and Solid applications
-- [SWC](https://swc.rs/): The Rust based compiler and bundler that provides up to 70x faster build times than Babel.
-- [Eslint 9](https://eslint.org/): The latest release of Eslint introduces the flat configuration API along with new rules and bug fixes.
-- [shadcn/ui](https://ui.shadcn.com/): Yes, shadcn support for Tailwind 4 is finally here!
-
-## Setup, dev environment
-
-There are two main ways to set up the dev environment:
-
-### 1. Using a VS Code Dev Container
-
-The dev containers extension lets you use a Docker container as a full-featured
-development environment. This repository includes a dev container configuration
-that you can use to open the project with all the necessary tools and
-dependencies pre-installed.
-
-Pre-requisites:
-
-- [Docker](https://www.docker.com/products/docker-desktop)
-- [Visual Studio Code](https://code.visualstudio.com/)
-- [Dev Containers Extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
-
-Once Docker, Visual Studio Code and the Dev Containers Extension are installed,
-you can open the project in a container by clicking the button below:
-
-[![Open locally in Dev Containers](https://img.shields.io/static/v1?label=Dev%20Containers&message=Open&color=blue&logo=visualstudiocode)](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/kristoferlund/ic-vite-react-next)
-
-### 2. Setup manually
-
-Pre-requisites:
-
-- [Local Internet Computer dev environment](https://internetcomputer.org/docs/current/developer-docs/backend/rust/dev-env)
-- [pnpm](https://pnpm.io/installation)
-
-Once you have the prerequisites installed, you can clone this repository and run
-the project.
-
-## Running the project
-
-### 1. Start the Internet Computer
-
-```bash
-dfx start --background
+```toml
+[dependencies]
+migrations = "0.0.1" 
 ```
 
-### 2. Install dependencies
+### 2. Create migration files
 
-```
-pnpm install
-```
+Create SQL files in a `migrations/` directory:
 
-### 3. Deploy the canisters
-
-```
-dfx deploy
-```
-
-## Develop
-
-During development, you can run the frontend with hot reloading using Vite.
-
-```bash
-pnpm run dev
+```sql
+-- migrations/000_initial.sql
+CREATE TABLE IF NOT EXISTS person (
+    id   INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 50),
+    age INTEGER
+);
 ```
 
-## Contributors
+### 3. Configure build.rs
 
-<!-- readme: collaborators,contributors -start -->
-<table>
-	<tbody>
-		<tr>
-            <td align="center">
-                <a href="https://github.com/kristoferlund">
-                    <img src="https://avatars.githubusercontent.com/u/9698363?v=4" width="100;" alt="kristoferlund"/>
-                    <br />
-                    <sub><b>Kristofer</b></sub>
-                </a>
-            </td>
-		</tr>
-	<tbody>
-</table>
-<!-- readme: collaborators,contributors -end -->
+List all migration files in a specified folder (defaults to `migrations`) to make them available to later be included and run. 
+
+```rust
+// build.rs
+fn main() {
+    migrations::list(Some("migrations")).unwrap();
+}
+```
+
+### 4. Run migrations on init and upgrade 
+
+```rust
+use ic_cdk::{init, post_upgrade, pre_upgrade};
+use ic_rusqlite::{close_connection, with_connection, Connection};
+
+static MIGRATIONS: &[migrations::Migration] = migrations::include!();
+
+fn run_migrations() {
+    with_connection(|mut conn| {
+        let conn: &mut Connection = &mut conn;
+        migrations::up(conn, MIGRATIONS).unwrap();
+    });
+}
+
+#[init]
+fn init() {
+    run_migrations();
+}
+
+#[pre_upgrade]
+fn pre_upgrade() {
+    close_connection();
+}
+
+#[post_upgrade]
+fn post_upgrade() {
+    run_migrations();
+}
+```
+
+
+## Example
+
+See the [SQLite Example](./examples/sqlite/README.md) for a complete implementation demonstrating:
+
+- Migration file structure and naming conventions
+- Automatic migration execution on canister lifecycle events
+- Verification of migration status
+- Integration with ICP canister development workflow
+
+## API Reference
+
+### `migrations::list(migrations_dir_name: Option<&str>) -> std::io::Result<()>`
+
+To make all SQL migration files automatically available to the `include!()` macro, this function should be called in the `build.rs` of the integrating canister.  
+
+### `migrations::include!()`
+
+Macro to include all the migration files that the `list()` function listed. 
+
+### `migrations::up(conn: &mut Connection, migrations: &[Migration]) -> Result<()>`
+
+Executes all pending migrations in order.
+
+## Migration File Format
+
+Migration files should be named with sequential numbers and descriptive names:
+
+```
+migrations/
+  000_initial.sql
+  001_add_email_column.sql
+  002_seed_data.sql
+```
+
+Files are executed in numerical order and tracked in the `migrations` table.
 
 ## License
 
-This project is licensed under the MIT License. See the LICENSE file for more
-details.
+This project is licensed under the MIT License. See the LICENSE file for more details.
 
 ## Contributing
 
-Contributions are welcome! Please open an issue or submit a pull request if you
-have any suggestions or improvements.
-
-[contributors-shield]: https://img.shields.io/github/contributors/kristoferlund/ic-vite-react-next.svg?style=for-the-badge
-[contributors-url]: https://github.com/kristoferlund/ic-vite-react-next/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/kristoferlund/ic-vite-react-next.svg?style=for-the-badge
-[forks-url]: https://github.com/kristoferlund/ic-vite-react-next/network/members
-[stars-shield]: https://img.shields.io/github/stars/kristoferlund/ic-vite-react-next?style=for-the-badge
-[stars-url]: https://github.com/kristoferlund/ic-vite-react-next/stargazers
-[issues-shield]: https://img.shields.io/github/issues/kristoferlund/ic-vite-react-next.svg?style=for-the-badge
-[issues-url]: https://github.com/kristoferlund/ic-vite-react-next/issues
-[license-shield]: https://img.shields.io/github/license/kristoferlund/ic-vite-react-next.svg?style=for-the-badge
+Contributions are welcome! Please open an issue or submit a pull request if you have any suggestions or improvements.

@@ -1,3 +1,3 @@
 fn main() {
-    migrations::generate_migrations(Some("migrations")).unwrap();
+    migrations::list(Some("migrations")).unwrap();
 }
