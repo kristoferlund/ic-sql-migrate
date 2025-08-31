@@ -2,6 +2,8 @@
 
 A lightweight SQLite migration library for Internet Computer (ICP) canisters, providing automatic database schema management and version control.
 
+Crates.io: [ic-sql-migrate](https://crates.io/crates/ic-sql-migrate)
+
 ## Features
 
 - **Automatic Migration Execution**: Runs migrations automatically on canister startup and upgrade
