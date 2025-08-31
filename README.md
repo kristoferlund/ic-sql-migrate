@@ -13,7 +13,11 @@ Crates.io: [ic-sql-migrate](https://crates.io/crates/ic-sql-migrate)
 
 ## Quick Start
 
-### 1. Add migrations crate to Cargo.toml
+### 1. Configure SQLite for ICP
+
+Using SQLite in an ICP canister requires you to add the [ic-rusqlite](https://crates.io/crates/ic-rusqlite) crate and to compile the canister for the WebAssembly System Interface (WASI). Follow the setup instructions on [ic-rusqlite](https://crates.io/crates/ic-rusqlite).  
+
+### 2. Add migrations crate to Cargo.toml
 
 The dependency needs to be added to `[build-dependencies]` as well, since it is used from the `build.rs` build script.
 
@@ -25,7 +29,7 @@ ic-sql-migrate = "0.0.1"
 ic-sql-migrate = "0.0.1" 
 ```
 
-### 2. Create migration files
+### 3. Create migration files
 
 Create SQL files in a `migrations/` directory:
 
@@ -38,7 +42,7 @@ CREATE TABLE IF NOT EXISTS person (
 );
 ```
 
-### 3. Configure build.rs
+### 4. Configure build.rs
 
 List all migration files in a specified folder (defaults to `migrations`) to make them available to later be included and run. 
 
@@ -49,7 +53,7 @@ fn main() {
 }
 ```
 
-### 4. Run migrations on init and upgrade 
+### 5. Run migrations on init and upgrade 
 
 ```rust
 use ic_cdk::{init, post_upgrade, pre_upgrade};
