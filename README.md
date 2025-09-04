@@ -12,7 +12,6 @@ A lightweight database migration library for Internet Computer (ICP) canisters w
 - 📦 **Compile-Time Embedding**: Migration files are embedded into your canister at compile time
 - 🔄 **Automatic Migration**: Tracks and applies migrations automatically on canister init and upgrade
 - 🔒 **Transactional**: All migrations run in transactions for safety
-- 🎯 **Zero Runtime Files**: No need to manage migration files at runtime
 - 🏗️ **ICP Native**: Designed specifically for Internet Computer canisters
 
 ## Quick Start
