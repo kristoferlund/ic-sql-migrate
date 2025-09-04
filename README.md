@@ -13,9 +13,15 @@ Crates.io: [ic-sql-migrate](https://crates.io/crates/ic-sql-migrate)
 
 ## Quick Start
 
-### 1. Configure SQLite for ICP
+### 1. Prerequisites for SQLite
 
-Using SQLite in an ICP canister requires you to add the [ic-rusqlite](https://crates.io/crates/ic-rusqlite) crate and to compile the canister for the WebAssembly System Interface (WASI). Follow the setup instructions on [ic-rusqlite](https://crates.io/crates/ic-rusqlite).  
+Using SQLite in an ICP canister requires the WASI SDK toolchain. Follow the setup instructions at [ic-rusqlite](https://crates.io/crates/ic-rusqlite) or run this automated setup script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/wasm-forge/ic-rusqlite/main/prepare.sh | sh
+```
+
+This will install the necessary tools including `wasi2ic`, the `wasm32-wasip1` Rust target, and WASI-SDK with required environment variables.
 
 ### 2. Add migrations crate to Cargo.toml
 

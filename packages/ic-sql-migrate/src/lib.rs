@@ -1,7 +1,77 @@
-//! A lightweight SQLite migration library for Internet Computer (ICP) canisters.
+//! A lightweight database migration library for Internet Computer (ICP) canisters.
 //!
 //! This library provides automatic database schema management and version control
-//! through SQL migration files that are embedded at compile time and executed at runtime.
+//! for SQLite (via `ic-rusqlite`) and Turso databases in ICP canisters. Migrations
+//! are embedded at compile time and executed during canister initialization and upgrades.
+//!
+//! # Features
+//! - **SQLite support** via `ic-rusqlite` (feature: `sqlite`)
+//! - **Turso support** for distributed SQLite (feature: `turso`)
+//! - **Automatic migration execution** on canister `init` and `post_upgrade`
+//! - **Compile-time migration embedding** via `include!()` macro
+//! - **Transaction-based execution** for atomicity
+//!
+//! # Quick Start for ICP Canisters
+//!
+//! ## 1. Prerequisites
+//!
+//! ### For SQLite (via ic-rusqlite)
+//! SQLite support requires the WASI SDK toolchain. Follow the setup instructions at
+//! [ic-rusqlite](https://crates.io/crates/ic-rusqlite) or run:
+//! ```bash
+//! curl -fsSL https://raw.githubusercontent.com/wasm-forge/ic-rusqlite/main/prepare.sh | sh
+//! ```
+//!
+//! ### For Turso
+//! No additional toolchain setup required beyond Rust and DFX.
+//!
+//! ## 2. Add to Cargo.toml
+//! ```toml
+//! [dependencies]
+//! ic-sql-migrate = { version = "0.0.1", features = ["sqlite"] }
+//! ic-rusqlite = "0.37.0"  # or turso = "0.1.4" for Turso
+//! ic-cdk = "0.16"
+//!
+//! [build-dependencies]
+//! ic-sql-migrate = "0.0.1"
+//! ```
+//!
+//! ## 3. Create build.rs
+//! ```no_run
+//! fn main() {
+//!     ic_sql_migrate::list(Some("migrations")).unwrap();
+//! }
+//! ```
+//!
+//! ## 4. Use in canister
+//! ```no_run
+//! use ic_cdk::{init, post_upgrade, pre_upgrade};
+//! use ic_rusqlite::{close_connection, with_connection, Connection};
+//!
+//! static MIGRATIONS: &[ic_sql_migrate::Migration] = ic_sql_migrate::include!();
+//!
+//! fn run_migrations() {
+//!     with_connection(|mut conn| {
+//!         let conn: &mut Connection = &mut conn;
+//!         ic_sql_migrate::sqlite::up(conn, MIGRATIONS).unwrap();
+//!     });
+//! }
+//!
+//! #[init]
+//! fn init() {
+//!     run_migrations();
+//! }
+//!
+//! #[pre_upgrade]
+//! fn pre_upgrade() {
+//!     close_connection();
+//! }
+//!
+//! #[post_upgrade]
+//! fn post_upgrade() {
+//!     run_migrations();
+//! }
+//! ```
 
 mod db;
 
@@ -17,26 +87,37 @@ use ::turso as turso_crate;
 use thiserror::Error;
 
 /// Custom error type for migration operations.
+///
+/// This enum represents all possible errors that can occur during migration operations.
+/// The actual database error variant depends on the feature flag enabled (either `sqlite` or `turso`).
 #[derive(Debug, Error)]
 pub enum Error {
-    /// I/O operation failed
+    /// I/O operation failed during build-time migration discovery
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
-    /// Migration execution failed
+    /// A specific migration failed to execute
+    ///
+    /// Contains the migration ID and the error message from the database
     #[error("Migration '{id}' failed: {message}")]
     MigrationFailed { id: String, message: String },
 
-    /// Environment variable not found
+    /// Environment variable was not found during build-time processing
     #[error("Environment variable '{0}' not set")]
     EnvVarNotFound(String),
 
-    /// Database error
+    /// Database error from the underlying database driver
+    ///
+    /// When using the `sqlite` feature, this wraps a `rusqlite::Error`.
+    /// When using the `turso` feature, this wraps a `turso::Error`.
     #[cfg(all(feature = "sqlite", not(feature = "turso")))]
     #[error("Database error: {0}")]
     Database(#[from] rusqlite::Error),
 
-    /// Database error
+    /// Database error from the underlying database driver
+    ///
+    /// When using the `sqlite` feature, this wraps a `rusqlite::Error`.
+    /// When using the `turso` feature, this wraps a `turso::Error`.
     #[cfg(all(feature = "turso", not(feature = "sqlite")))]
     #[error("Database error: {0}")]
     Database(#[from] turso_crate::Error),
@@ -52,23 +133,63 @@ compile_error!(
     "Cannot enable both 'sqlite' and 'turso' features at the same time. Please choose one."
 );
 
+/// Type alias for `Result<T, Error>` used throughout the library.
+///
+/// This provides a convenient shorthand for functions that can return migration errors.
 pub type MigrateResult<T> = std::result::Result<T, Error>;
 
 /// Represents a single database migration with its unique identifier and SQL content.
+///
+/// Migrations are typically created at compile time by the `include!()` macro
+/// from SQL files in your migrations directory. Each migration consists of:
+/// - An identifier (usually the filename without extension)
+/// - The SQL statements to execute
+///
+/// # Example in ICP Canister
+/// ```
+/// use ic_sql_migrate::Migration;
+///
+/// // Typically included via the include!() macro:
+/// static MIGRATIONS: &[Migration] = &[
+///     Migration::new(
+///         "001_create_users",
+///         "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL);"
+///     ),
+///     Migration::new(
+///         "002_add_email",
+///         "ALTER TABLE users ADD COLUMN email TEXT;"
+///     ),
+/// ];
+/// ```
 #[derive(Debug, Clone)]
 pub struct Migration {
-    /// Unique identifier for the migration, derived from the filename
+    /// Unique identifier for the migration, typically derived from the filename.
+    /// This ID is stored in the `_migrations` table to track which migrations have been applied.
     pub id: &'static str,
-    /// SQL statements to execute for this migration
+    /// SQL statements to execute for this migration.
+    /// Can contain multiple statements separated by semicolons.
     pub sql: &'static str,
 }
 
 impl Migration {
     /// Creates a new migration with the given ID and SQL content.
     ///
+    /// This is a `const fn`, allowing migrations to be created at compile time.
+    ///
     /// # Arguments
-    /// * `id` - Unique identifier for the migration
-    /// * `sql` - SQL statements to execute
+    /// * `id` - Unique identifier for the migration (must not contain whitespace or special characters)
+    /// * `sql` - SQL statements to execute (can be multiple statements separated by semicolons)
+    ///
+    /// # Example
+    /// ```
+    /// use ic_sql_migrate::Migration;
+    ///
+    /// // Static migrations for use in ICP canisters
+    /// static INIT_MIGRATION: Migration = Migration::new(
+    ///     "001_init",
+    ///     "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY);"
+    /// );
+    /// ```
     pub const fn new(id: &'static str, sql: &'static str) -> Self {
         Self { id, sql }
     }
@@ -77,11 +198,38 @@ impl Migration {
 /// Includes all migration files discovered by the `list` function at compile time.
 ///
 /// This macro expands to a static slice of `Migration` structs containing
-/// all SQL files found in the migrations directory.
+/// all SQL files found in the migrations directory. The migrations are ordered
+/// alphabetically by filename, so it's recommended to prefix them with numbers
+/// (e.g., `001_initial.sql`, `002_add_users.sql`).
 ///
-/// # Example
+/// # Prerequisites
+/// You must call `ic_sql_migrate::list()` in your `build.rs` file to generate
+/// the migration data that this macro includes.
+///
+/// # Example in ICP Canister
 /// ```ignore
-/// static MIGRATIONS: &[migrations::Migration] = ic_sql_migrate::include!();
+/// // In your canister lib.rs
+/// use ic_cdk::{init, post_upgrade};
+/// use ic_rusqlite::{with_connection, Connection};
+///
+/// static MIGRATIONS: &[ic_sql_migrate::Migration] = ic_sql_migrate::include!();
+///
+/// fn run_migrations() {
+///     with_connection(|mut conn| {
+///         let conn: &mut Connection = &mut conn;
+///         ic_sql_migrate::sqlite::up(conn, MIGRATIONS).unwrap();
+///     });
+/// }
+///
+/// #[init]
+/// fn init() {
+///     run_migrations();
+/// }
+///
+/// #[post_upgrade]
+/// fn post_upgrade() {
+///     run_migrations();
+/// }
 /// ```
 #[macro_export]
 macro_rules! include {
@@ -96,21 +244,38 @@ macro_rules! include {
 /// all migration files into the binary. It scans the specified directory for
 /// `.sql` files and generates Rust code to include them.
 ///
+/// The function will:
+/// 1. Look for SQL files in the specified directory (relative to `Cargo.toml`)
+/// 2. Sort them alphabetically by filename
+/// 3. Generate code that includes their content at compile time
+/// 4. Set up cargo to rebuild when migration files change
+///
 /// # Arguments
 /// * `migrations_dir_name` - Optional custom directory name (defaults to "migrations")
 ///
-/// # Example
+/// # Example in build.rs
 /// ```no_run
-/// // In build.rs
+/// // In your canister's build.rs file
 /// fn main() {
+///     // Use default "migrations" directory
+///     ic_sql_migrate::list(None).unwrap();
+///
+///     // Or specify a custom directory relative to Cargo.toml
 ///     ic_sql_migrate::list(Some("migrations")).unwrap();
 /// }
 /// ```
 ///
+/// # File Naming Convention
+/// Migration files should be named with a sortable prefix to ensure correct execution order:
+/// - `001_initial_schema.sql`
+/// - `002_add_users_table.sql`
+/// - `003_add_indexes.sql`
+///
 /// # Errors
 /// Returns an I/O error if:
-/// - The output directory cannot be written to
+/// - The output directory (`OUT_DIR`) cannot be written to
 /// - File system operations fail
+/// - Environment variables `CARGO_MANIFEST_DIR` or `OUT_DIR` are not set
 pub fn list(migrations_dir_name: Option<&str>) -> std::io::Result<()> {
     use std::env;
     use std::fs;

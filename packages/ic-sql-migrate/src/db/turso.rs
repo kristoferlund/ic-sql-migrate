@@ -1,3 +1,55 @@
+//! Turso database migration support for ICP canisters.
+//!
+//! This module provides migration functionality for Turso databases in Internet Computer canisters
+//! using the `turso` crate. It manages database schema versioning through a `_migrations` table
+//! that tracks which migrations have been applied.
+//!
+//! # Features
+//! - Automatic migration tracking via `_migrations` table
+//! - Transactional migration execution (all-or-nothing)
+//! - Idempotent migrations (safe to run multiple times)
+//! - Ordered execution of pending migrations
+//!
+//! # Usage in ICP Canisters
+//! ```no_run
+//! use ic_cdk::{init, post_upgrade, pre_upgrade};
+//! use turso::Connection;
+//! use std::cell::RefCell;
+//!
+//! static MIGRATIONS: &[ic_sql_migrate::Migration] = ic_sql_migrate::include!();
+//!
+//! thread_local! {
+//!     static CONNECTION: RefCell<Option<Connection>> = const { RefCell::new(None) };
+//! }
+//!
+//! async fn get_connection() -> Connection {
+//!     // Initialize or get existing connection
+//!     // See examples for complete implementation
+//! }
+//!
+//! async fn run_migrations() {
+//!     let mut conn = get_connection().await;
+//!     ic_sql_migrate::turso::up(&mut conn, MIGRATIONS).await.unwrap();
+//! }
+//!
+//! #[init]
+//! async fn init() {
+//!     // Initialize memory/storage
+//!     run_migrations().await;
+//! }
+//!
+//! #[pre_upgrade]
+//! fn pre_upgrade() {
+//!     // Close database connection
+//! }
+//!
+//! #[post_upgrade]
+//! async fn post_upgrade() {
+//!     // Re-initialize memory/storage
+//!     run_migrations().await;
+//! }
+//! ```
+
 use std::collections::HashSet;
 use turso::Connection;
 
@@ -44,16 +96,36 @@ async fn get_applied_migrations(conn: &Connection) -> MigrateResult<HashSet<Stri
 /// 4. Records each migration as applied
 ///
 /// All migrations are executed within a single transaction for atomicity.
+/// If any migration fails, all changes are rolled back.
 ///
 /// # Arguments
-/// * `conn` - Reference to the Turso connection wrapper
+/// * `conn` - Mutable reference to the Turso connection
 /// * `migrations` - Slice of migrations to apply in order
+///
+/// # Returns
+/// * `Ok(())` - If all pending migrations were successfully applied or if there were no pending migrations
+/// * `Err(Error)` - If any migration failed to execute
 ///
 /// # Errors
 /// Returns an error if:
 /// - Database operations fail
 /// - Migration SQL is invalid
 /// - Transaction cannot be committed
+///
+/// # Example in ICP Canister
+/// ```no_run
+/// use turso::Connection;
+/// use ic_sql_migrate::Migration;
+///
+/// static MIGRATIONS: &[Migration] = &[
+///     Migration::new("001_initial", "CREATE TABLE users (id INTEGER PRIMARY KEY);"),
+///     Migration::new("002_add_email", "ALTER TABLE users ADD COLUMN email TEXT;"),
+/// ];
+///
+/// async fn apply_migrations(conn: &mut Connection) {
+///     ic_sql_migrate::turso::up(conn, MIGRATIONS).await.unwrap();
+/// }
+/// ```
 pub async fn up(conn: &mut Connection, migrations: &[Migration]) -> MigrateResult<()> {
     ensure_migrations_table(conn).await?;
     let applied_migrations = get_applied_migrations(conn).await?;

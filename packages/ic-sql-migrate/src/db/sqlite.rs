@@ -1,3 +1,49 @@
+//! SQLite database migration support for ICP canisters.
+//!
+//! This module provides migration functionality for SQLite databases in Internet Computer canisters
+//! using the `ic-rusqlite` crate. It manages database schema versioning through a `_migrations` table
+//! that tracks which migrations have been applied.
+//!
+//! # Prerequisites
+//! SQLite support requires the WASI SDK toolchain. See [ic-rusqlite](https://crates.io/crates/ic-rusqlite)
+//! for setup instructions.
+//!
+//! # Features
+//! - Automatic migration tracking via `_migrations` table
+//! - Transactional migration execution (all-or-nothing)
+//! - Idempotent migrations (safe to run multiple times)
+//! - Ordered execution of pending migrations
+//!
+//! # Usage in ICP Canisters
+//! ```no_run
+//! use ic_cdk::{init, post_upgrade, pre_upgrade};
+//! use ic_rusqlite::{close_connection, with_connection, Connection};
+//!
+//! static MIGRATIONS: &[ic_sql_migrate::Migration] = ic_sql_migrate::include!();
+//!
+//! fn run_migrations() {
+//!     with_connection(|mut conn| {
+//!         let conn: &mut Connection = &mut conn;
+//!         ic_sql_migrate::sqlite::up(conn, MIGRATIONS).unwrap();
+//!     });
+//! }
+//!
+//! #[init]
+//! fn init() {
+//!     run_migrations();
+//! }
+//!
+//! #[pre_upgrade]
+//! fn pre_upgrade() {
+//!     close_connection();
+//! }
+//!
+//! #[post_upgrade]
+//! fn post_upgrade() {
+//!     run_migrations();
+//! }
+//! ```
+
 use rusqlite::Connection;
 use std::collections::HashSet;
 
@@ -42,16 +88,39 @@ fn get_applied_migrations(conn: &Connection) -> MigrateResult<HashSet<String>> {
 /// 4. Records each migration as applied
 ///
 /// All migrations are executed within a single transaction for atomicity.
+/// If any migration fails, all changes are rolled back.
 ///
 /// # Arguments
 /// * `conn` - Mutable reference to the SQLite connection
 /// * `migrations` - Slice of migrations to apply in order
+///
+/// # Returns
+/// * `Ok(())` - If all pending migrations were successfully applied or if there were no pending migrations
+/// * `Err(Error)` - If any migration failed to execute
 ///
 /// # Errors
 /// Returns an error if:
 /// - Database operations fail
 /// - Migration SQL is invalid
 /// - Transaction cannot be committed
+///
+/// # Example in ICP Canister
+/// ```no_run
+/// use ic_rusqlite::{with_connection, Connection};
+/// use ic_sql_migrate::{Migration, sqlite};
+///
+/// static MIGRATIONS: &[Migration] = &[
+///     Migration::new("001_initial", "CREATE TABLE users (id INTEGER PRIMARY KEY);"),
+///     Migration::new("002_add_email", "ALTER TABLE users ADD COLUMN email TEXT;"),
+/// ];
+///
+/// fn apply_migrations() {
+///     with_connection(|mut conn| {
+///         let conn: &mut Connection = &mut conn;
+///         sqlite::up(conn, MIGRATIONS).unwrap();
+///     });
+/// }
+/// ```
 pub fn up(conn: &mut Connection, migrations: &[Migration]) -> MigrateResult<()> {
     ensure_migrations_table(conn)?;
     let applied_migrations = get_applied_migrations(conn)?;
