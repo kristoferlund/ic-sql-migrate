@@ -16,6 +16,8 @@ A lightweight database migration library for Internet Computer (ICP) canisters w
 
 ## Prerequisites
 
+**IMPORTANT**: You must enable exactly one database feature (`sqlite` or `turso`) for this library to work. There is no default feature.
+
 ### For SQLite Support
 
 Using SQLite in ICP canisters requires the WASI SDK toolchain. Follow the setup instructions at [ic-rusqlite](https://crates.io/crates/ic-rusqlite) or run this automated setup script:
@@ -41,7 +43,8 @@ Add to both `[dependencies]` and `[build-dependencies]` in your `Cargo.toml`:
 ### For SQLite support (most common for ICP):
 ```toml
 [dependencies]
-ic-sql-migrate = { version = "0.0.1", features = ["sqlite"] }
+# Note: You MUST specify either "sqlite" or "turso" feature - there is no default
+ic-sql-migrate = { version = "0.0.2", features = ["sqlite"] }
 ic-rusqlite = "0.37.0"
 ic-cdk = "0.16"
 
@@ -52,15 +55,19 @@ ic-sql-migrate = "0.0.1"
 ### For Turso support:
 ```toml
 [dependencies]
-ic-sql-migrate = { version = "0.0.1", features = ["turso"] }
+# Note: You MUST specify either "sqlite" or "turso" feature - there is no default
+ic-sql-migrate = { version = "0.0.2", features = ["turso"] }
 turso = "0.1.4"
 ic-cdk = "0.16"
 
 [build-dependencies]
-ic-sql-migrate = "0.0.1"
+ic-sql-migrate = "0.0.2"
 ```
 
-**Important:** You must choose exactly one database feature (`sqlite` or `turso`). The features are mutually exclusive.
+**Important:** 
+- You **MUST** choose exactly one database feature (`sqlite` or `turso`)
+- The features are mutually exclusive (cannot use both)
+- There is no default feature - the library will not work without selecting one
 
 ## Quick Start
 
@@ -265,8 +272,8 @@ CREATE TABLE _migrations (
 
 ## Troubleshooting
 
-### "No database feature enabled" error
-Make sure to enable either the `sqlite` or `turso` feature in your `Cargo.toml`.
+### Library doesn't compile / "module not found" errors
+You **must** enable either the `sqlite` or `turso` feature in your `Cargo.toml`. The library has no default features and will not work without explicitly selecting a database backend.
 
 ### "Both features enabled" error
 You can only use one database backend at a time. Remove one of the features.

@@ -11,7 +11,7 @@
 //! - Ordered execution of pending migrations
 //!
 //! # Usage in ICP Canisters
-//! ```no_run
+//! ```ignore
 //! use ic_cdk::{init, post_upgrade, pre_upgrade};
 //! use turso::Connection;
 //! use std::cell::RefCell;

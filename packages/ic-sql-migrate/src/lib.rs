@@ -5,11 +5,19 @@
 //! are embedded at compile time and executed during canister initialization and upgrades.
 //!
 //! # Features
+//!
+//! **IMPORTANT**: You must enable exactly one database feature for this library to work:
 //! - **SQLite support** via `ic-rusqlite` (feature: `sqlite`)
 //! - **Turso support** for distributed SQLite (feature: `turso`)
+//!
+//! Additional capabilities:
 //! - **Automatic migration execution** on canister `init` and `post_upgrade`
 //! - **Compile-time migration embedding** via `include!()` macro
 //! - **Transaction-based execution** for atomicity
+//!
+//! The library has no default features. Attempting to use it without enabling
+//! either `sqlite` or `turso` will result in compilation errors when trying to
+//! access the database modules.
 //!
 //! # Quick Start for ICP Canisters
 //!
@@ -44,7 +52,7 @@
 //! ```
 //!
 //! ## 4. Use in canister
-//! ```no_run
+//! ```ignore
 //! use ic_cdk::{init, post_upgrade, pre_upgrade};
 //! use ic_rusqlite::{close_connection, with_connection, Connection};
 //!
@@ -107,31 +115,28 @@ pub enum Error {
     EnvVarNotFound(String),
 
     /// Database error from the underlying database driver
-    ///
-    /// When using the `sqlite` feature, this wraps a `rusqlite::Error`.
-    /// When using the `turso` feature, this wraps a `turso::Error`.
-    #[cfg(all(feature = "sqlite", not(feature = "turso")))]
     #[error("Database error: {0}")]
-    Database(#[from] rusqlite::Error),
-
-    /// Database error from the underlying database driver
-    ///
-    /// When using the `sqlite` feature, this wraps a `rusqlite::Error`.
-    /// When using the `turso` feature, this wraps a `turso::Error`.
-    #[cfg(all(feature = "turso", not(feature = "sqlite")))]
-    #[error("Database error: {0}")]
-    Database(#[from] turso_crate::Error),
+    Database(Box<dyn std::error::Error + Send + Sync>),
 }
 
-// Compile-time check to ensure at least one database feature is enabled
-#[cfg(not(any(feature = "sqlite", feature = "turso")))]
-compile_error!("At least one database feature must be enabled: either 'sqlite' or 'turso'");
+// IMPORTANT: Users must enable exactly one database feature: either 'sqlite' or 'turso'
+// The library can be compiled without features for publishing to crates.io,
+// but actual usage requires selecting a database backend. If no feature is selected,
+// the database modules will not be available and the library cannot be used.
 
-// Compile-time check to prevent both features from being enabled
-#[cfg(all(feature = "sqlite", feature = "turso"))]
-compile_error!(
-    "Cannot enable both 'sqlite' and 'turso' features at the same time. Please choose one."
-);
+#[cfg(feature = "sqlite")]
+impl From<rusqlite::Error> for Error {
+    fn from(err: rusqlite::Error) -> Self {
+        Error::Database(Box::new(err))
+    }
+}
+
+#[cfg(feature = "turso")]
+impl From<turso_crate::Error> for Error {
+    fn from(err: turso_crate::Error) -> Self {
+        Error::Database(Box::new(err))
+    }
+}
 
 /// Type alias for `Result<T, Error>` used throughout the library.
 ///

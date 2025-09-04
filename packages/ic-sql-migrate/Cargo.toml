@@ -2,7 +2,7 @@
 name = "ic-sql-migrate"
 version = "0.0.2"
 edition = "2021"
-description = "A lightweight SQLite migration library for Internet Computer (ICP) canisters."
+description = "A lightweight database migration library for Internet Computer (ICP) canisters with SQLite and Turso support."
 authors = ["Kristofer Lund"]
 license = "MIT"
 repository = "https://github.com/kristoferlund/ic-sql-migrate"

@@ -19,6 +19,8 @@ A lightweight database migration library for Internet Computer (ICP) canisters w
 
 ### Prerequisites
 
+**IMPORTANT**: You must enable exactly one database feature (`sqlite` or `turso`) for this library to work. There is no default feature.
+
 #### For SQLite Support
 SQLite support requires the WASI SDK toolchain. Follow the setup instructions at [ic-rusqlite](https://crates.io/crates/ic-rusqlite) or run:
 
@@ -35,6 +37,7 @@ Add to both `[dependencies]` and `[build-dependencies]` in your `Cargo.toml`:
 
 ```toml
 # For SQLite support
+# Note: You MUST specify either "sqlite" or "turso" feature - there is no default
 [dependencies]
 ic-sql-migrate = { version = "0.0.2", features = ["sqlite"] }
 ic-rusqlite = "0.37.0"
@@ -47,7 +50,8 @@ ic-sql-migrate = "0.0.2"
 Or for Turso:
 
 ```toml
-# For Turso support
+# For Turso support  
+# Note: You MUST specify either "sqlite" or "turso" feature - there is no default
 [dependencies]
 ic-sql-migrate = { version = "0.0.2", features = ["turso"] }
 turso = "0.1.4"
@@ -57,7 +61,10 @@ ic-cdk = "0.16"
 ic-sql-migrate = "0.0.2"
 ```
 
-**Important:** Choose exactly one database feature (`sqlite` or `turso`). They are mutually exclusive.
+**Important:** 
+- You **MUST** choose exactly one database feature (`sqlite` or `turso`)
+- The features are mutually exclusive (cannot use both)
+- There is no default feature - the library will not work without selecting one
 
 ### Basic Usage
 

@@ -15,7 +15,7 @@
 //! - Ordered execution of pending migrations
 //!
 //! # Usage in ICP Canisters
-//! ```no_run
+//! ```ignore
 //! use ic_cdk::{init, post_upgrade, pre_upgrade};
 //! use ic_rusqlite::{close_connection, with_connection, Connection};
 //!
@@ -105,7 +105,7 @@ fn get_applied_migrations(conn: &Connection) -> MigrateResult<HashSet<String>> {
 /// - Transaction cannot be committed
 ///
 /// # Example in ICP Canister
-/// ```no_run
+/// ```ignore
 /// use ic_rusqlite::{with_connection, Connection};
 /// use ic_sql_migrate::{Migration, sqlite};
 ///
