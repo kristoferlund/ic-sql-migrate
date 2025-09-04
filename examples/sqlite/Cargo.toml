@@ -1,5 +1,5 @@
 [package]
-name = "sqlite"
+name = "sqlite-example"
 version = "0.0.1"
 edition = "2021"
 
@@ -11,10 +11,10 @@ candid = "0.10.17"
 ic-cdk = "0.18.7"
 ic-rusqlite = "0.3.1"
 ic-sql-migrate = { path = "../../packages/ic-sql-migrate", features = [
-  "sqlite",
+    "sqlite",
 ] }
 
 [build-dependencies]
 ic-sql-migrate = { path = "../../packages/ic-sql-migrate", features = [
-  "sqlite",
+    "sqlite",
 ] }

@@ -1,3 +1,4 @@
 service : () -> {
   run : () -> (text) query;
+  perf1 : () -> (text);
 }

@@ -1517,7 +1517,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sqlite"
+name = "sqlite-example"
 version = "0.0.1"
 dependencies = [
  "candid",
