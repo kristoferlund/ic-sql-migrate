@@ -96,7 +96,7 @@ fn perf1() -> String {
             let data = generate_random_data(seed + i, 1024);
             let random_value = ((seed + i) * 2654435761) % 1000000; // Simple hash for random value
 
-            stmt.execute(&[
+            stmt.execute([
                 &data as &dyn ic_rusqlite::ToSql,
                 &random_value as &dyn ic_rusqlite::ToSql,
             ])
@@ -123,8 +123,7 @@ fn perf1() -> String {
     ic_cdk::println!("Total records in perf_test table: {}", result);
 
     format!(
-        "Performance test completed: Inserted 1000 records. Instructions used: {}. Total records: {}",
-        instructions_used, result
+        "Performance test completed: Inserted 1000 records. Instructions used: {instructions_used}. Total records: {result}"
     )
 }
 

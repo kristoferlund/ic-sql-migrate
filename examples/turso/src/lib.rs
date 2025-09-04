@@ -49,17 +49,17 @@ fn close_database() {
 
 fn mount_memory_files() {
     MEMORY_MANAGER.with_borrow(|m| {
-        ic_wasi_polyfill::init_with_memory_manager(&[0u8; 32], &[], &m, 200..210);
+        ic_wasi_polyfill::init_with_memory_manager(&[0u8; 32], &[], m, 200..210);
 
         // unmount old mount, in case it was created
-        ic_wasi_polyfill::unmount_memory_file(&DB_FILE_NAME);
+        ic_wasi_polyfill::unmount_memory_file(DB_FILE_NAME);
 
         // mount virtual memory as file for faster DB operations
         let memory = m.get(MemoryId::new(MOUNTED_MEMORY_ID));
         ic_wasi_polyfill::mount_memory_file(DB_FILE_NAME, Box::new(memory));
 
         // remove lock if it exists
-        let _ = std::fs::remove_dir_all(format!("{}.lock", DB_FILE_NAME));
+        let _ = std::fs::remove_dir_all(format!("{DB_FILE_NAME}.lock"));
 
         // create folder before opening the database
         let path = Path::new(&DB_FILE_NAME).parent();
@@ -208,8 +208,7 @@ async fn perf1() -> String {
     ic_cdk::println!("Total records in perf_test table: {}", count);
 
     format!(
-        "Performance test completed: Inserted 1000 records. Instructions used: {}. Total records: {}",
-        instructions_used,  count
+        "Performance test completed: Inserted 1000 records. Instructions used: {instructions_used}. Total records: {count}"
     )
 }
 
