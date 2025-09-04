@@ -16,21 +16,17 @@ async fn ensure_migrations_table(conn: &Connection) -> MigrateResult<()> {
         )",
         (),
     )
-    .await
-    .map_err(crate::Error::Turso)?;
+    .await?;
     Ok(())
 }
 
 /// Retrieves the set of already applied migration IDs from the database.
 async fn get_applied_migrations(conn: &Connection) -> MigrateResult<HashSet<String>> {
-    let mut rows = conn
-        .query("SELECT id FROM _migrations", ())
-        .await
-        .map_err(Error::Turso)?;
+    let mut rows = conn.query("SELECT id FROM _migrations", ()).await?;
 
     let mut applied_set = HashSet::new();
-    while let Some(row) = rows.next().await.map_err(Error::Turso)? {
-        let value = row.get_value(0).map_err(Error::Turso)?;
+    while let Some(row) = rows.next().await? {
+        let value = row.get_value(0)?;
         if let Some(text) = value.as_text() {
             applied_set.insert(text.to_string());
         }

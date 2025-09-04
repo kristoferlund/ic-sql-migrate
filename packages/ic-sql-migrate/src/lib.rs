@@ -31,18 +31,26 @@ pub enum Error {
     #[error("Environment variable '{0}' not set")]
     EnvVarNotFound(String),
 
-    /// Generic database error
+    /// Database error
+    #[cfg(all(feature = "sqlite", not(feature = "turso")))]
     #[error("Database error: {0}")]
-    Database(String),
+    Database(#[from] rusqlite::Error),
 
-    #[cfg(feature = "sqlite")]
-    #[error("SQLite error: {0}")]
-    Sqlite(#[from] rusqlite::Error),
-
-    #[cfg(feature = "turso")]
-    #[error("Turso error: {0}")]
-    Turso(#[from] turso_crate::Error),
+    /// Database error
+    #[cfg(all(feature = "turso", not(feature = "sqlite")))]
+    #[error("Database error: {0}")]
+    Database(#[from] turso_crate::Error),
 }
+
+// Compile-time check to ensure at least one database feature is enabled
+#[cfg(not(any(feature = "sqlite", feature = "turso")))]
+compile_error!("At least one database feature must be enabled: either 'sqlite' or 'turso'");
+
+// Compile-time check to prevent both features from being enabled
+#[cfg(all(feature = "sqlite", feature = "turso"))]
+compile_error!(
+    "Cannot enable both 'sqlite' and 'turso' features at the same time. Please choose one."
+);
 
 pub type MigrateResult<T> = std::result::Result<T, Error>;
 
