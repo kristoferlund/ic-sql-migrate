@@ -1,5 +1,23 @@
 {
   "canisters": {
+    "turso": {
+      "candid": "examples/turso/turso.did",
+      "package": "turso",
+      "declarations": {
+        "output": "examples/turso/declarations"
+      },
+      "build": [
+        "cargo build -p turso-example --target wasm32-wasip1 --release",
+        "wasi2ic target/wasm32-wasip1/release/turso_example.wasm target/wasm32-wasip1/release/turso-example-wasi2ic.wasm"
+      ],
+      "wasm": "target/wasm32-wasip1/release/turso-example-wasi2ic.wasm",
+      "type": "custom",
+      "metadata": [
+        {
+          "name": "candid:service"
+        }
+      ]
+    },
     "sqlite": {
       "candid": "examples/sqlite/sqlite.did",
       "package": "sqlite",
@@ -7,10 +25,10 @@
         "output": "examples/sqlite/declarations"
       },
       "build": [
-        "cargo build -p sqlite --target wasm32-wasip1 --release",
-        "wasi2ic target/wasm32-wasip1/release/sqlite.wasm target/wasm32-wasip1/release/sqlite_wasi2ic.wasm"
+        "cargo build -p sqlite-example --target wasm32-wasip1 --release",
+        "wasi2ic target/wasm32-wasip1/release/sqlite_example.wasm target/wasm32-wasip1/release/sqlite-example-wasi2ic.wasm"
       ],
-      "wasm": "target/wasm32-wasip1/release/sqlite_wasi2ic.wasm",
+      "wasm": "target/wasm32-wasip1/release/sqlite-example-wasi2ic.wasm",
       "type": "custom",
       "metadata": [
         {

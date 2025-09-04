@@ -1,8 +1,8 @@
 [package]
 name = "ic-sql-migrate"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2021"
-description = "A lightweight SQLite migration library for Internet Computer (ICP) canisters."
+description = "A lightweight database migration library for Internet Computer (ICP) canisters with SQLite and Turso support."
 authors = ["Kristofer Lund"]
 license = "MIT"
 repository = "https://github.com/kristoferlund/ic-sql-migrate"
@@ -11,5 +11,16 @@ keywords = ["sqlite", "migration", "icp", "internet-computer", "database"]
 categories = ["database", "development-tools"]
 
 [dependencies]
-rusqlite = "0.37.0"
 thiserror = "2.0.16"
+rusqlite = { version = "0.37.0", optional = true }
+tokio = { version = "1.47.1", optional = true }
+turso = { version = "0.1.4", optional = true }
+futures-util = { version = "0.3", optional = true }
+
+[features]
+default = []
+sqlite = ["rusqlite", "tokio"]
+turso = ["dep:turso", "tokio", "futures-util"]
+
+[dev-dependencies]
+tokio = { version = "1.47.1", features = ["full"] }
