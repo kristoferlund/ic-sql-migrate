@@ -2,6 +2,29 @@
 
 This example demonstrates how to use `ic-sql-migrate` with Turso in an Internet Computer canister.
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Prerequisites](#prerequisites)
+- [Project Structure](#project-structure)
+- [How It Works](#how-it-works)
+  - [1. Build Time](#1-build-time)
+  - [2. Memory Management](#2-memory-management)
+  - [3. Database Connection](#3-database-connection)
+  - [4. Migration System](#4-migration-system)
+- [Migrations](#migrations)
+- [Quick Start](#quick-start)
+- [Canister Endpoints](#canister-endpoints)
+- [Sample Output](#sample-output)
+- [Key Differences from SQLite Example](#key-differences-from-sqlite-example)
+- [Implementation Details](#implementation-details)
+  - [Connection Setup](#connection-setup)
+  - [WASI Polyfill Configuration](#wasi-polyfill-configuration)
+- [Testing](#testing)
+- [Troubleshooting](#troubleshooting)
+- [Performance Considerations](#performance-considerations)
+- [License](#license)
+
 ## Overview
 
 This canister provides the same functionality as the SQLite example but uses Turso as the database backend. It demonstrates that `ic-sql-migrate` can work with different database backends while maintaining the same migration workflow and canister interface.

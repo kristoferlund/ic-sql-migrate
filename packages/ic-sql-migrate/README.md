@@ -6,6 +6,27 @@ A lightweight database migration library for Internet Computer (ICP) canisters w
 [![Documentation](https://docs.rs/ic-sql-migrate/badge.svg)](https://docs.rs/ic-sql-migrate)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+## Table of Contents
+
+- [Features](#features)
+- [Prerequisites](#prerequisites)
+  - [For SQLite Support](#for-sqlite-support)
+  - [For Turso Support](#for-turso-support)
+- [Installation](#installation)
+- [Usage](#usage)
+  - [1. Create migration files](#1-create-migration-files)
+  - [2. Set up build.rs](#2-set-up-buildrs)
+  - [3. Use in your canister](#3-use-in-your-canister)
+- [API Reference](#api-reference)
+  - [Core Functions](#core-functions)
+  - [Build Script Function](#build-script-function)
+  - [Macros](#macros)
+- [Migration Best Practices](#migration-best-practices)
+- [How It Works](#how-it-works)
+- [Examples](#examples)
+- [Differences Between Database Backends](#differences-between-database-backends)
+- [License](#license)
+
 ## Features
 
 - 🚀 **Multi-Database Support**: Works with SQLite (via `ic-rusqlite`) and Turso databases

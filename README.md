@@ -6,6 +6,28 @@ A lightweight database migration library for Internet Computer (ICP) canisters w
 [![Documentation](https://docs.rs/ic-sql-migrate/badge.svg)](https://docs.rs/ic-sql-migrate)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+## Table of Contents
+
+- [Features](#features)
+- [Quick Start](#quick-start)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Basic Usage](#basic-usage)
+- [Examples](#examples)
+- [API Reference](#api-reference)
+  - [Core Functions](#core-functions)
+  - [Build Script Function](#build-script-function)
+  - [Macros](#macros)
+- [Migration Best Practices](#migration-best-practices)
+- [How It Works](#how-it-works)
+- [Project Structure](#project-structure)
+- [Documentation](#documentation)
+- [Differences Between Database Backends](#differences-between-database-backends)
+- [Contributing](#contributing)
+- [License](#license)
+- [Acknowledgments](#acknowledgments)
+- [Support](#support)
+
 ## Features
 
 - 🚀 **Multi-Database Support**: Works with SQLite (via `ic-rusqlite`) and Turso databases
@@ -49,7 +71,7 @@ ic-sql-migrate = "0.0.3"
 Or for Turso:
 
 ```toml
-# For Turso support  
+# For Turso support
 # Note: You MUST specify either "sqlite" or "turso" feature - there is no default
 [dependencies]
 ic-sql-migrate = { version = "0.0.3", features = ["turso"] }
@@ -60,7 +82,7 @@ ic-cdk = "0.16"
 ic-sql-migrate = "0.0.3"
 ```
 
-**Important:** 
+**Important:**
 - You **MUST** choose exactly one database feature (`sqlite` or `turso`)
 - The features are mutually exclusive (cannot use both)
 - There is no default feature - the library will not work without selecting one
@@ -271,7 +293,6 @@ ic-sql-migrate/
 | **Additional Setup** | WASI SDK required | None |
 | **Connection Type** | `ic_rusqlite::Connection` | `turso::Connection` |
 | **Migration Function** | `sqlite::up()` | `turso::up()` (async) |
-| **Best For** | Simple, synchronous operations | Async, distributed applications |
 
 ## Contributing
 

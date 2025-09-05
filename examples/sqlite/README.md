@@ -2,6 +2,34 @@
 
 This example demonstrates running SQLite databases on the Internet Computer using `ic-sql-migrate` with the complete Chinook music store database. It explores how ICP canisters handle complex databases with thousands of records and sophisticated queries.
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Prerequisites](#prerequisites)
+  - [Setting up WASI SDK for SQLite](#setting-up-wasi-sdk-for-sqlite)
+- [The Chinook Database](#the-chinook-database)
+  - [Tables (11 total)](#tables-11-total)
+  - [Data Volume](#data-volume)
+- [Project Structure](#project-structure)
+- [Test Endpoints](#test-endpoints)
+  - [Read Operations (Query Methods)](#read-operations-query-methods)
+  - [Write Operations (Update Methods)](#write-operations-update-methods)
+- [Performance Characteristics](#performance-characteristics)
+- [Benchmarking with CanBench](#benchmarking-with-canbench)
+  - [Prerequisites for CanBench](#prerequisites-for-canbench)
+  - [Running Benchmarks](#running-benchmarks)
+  - [Understanding Results](#understanding-results)
+- [Quick Start](#quick-start)
+- [Sample Output](#sample-output)
+- [Key Implementation Details](#key-implementation-details)
+  - [Migration System](#migration-system)
+  - [Connection Management](#connection-management)
+  - [Performance Monitoring](#performance-monitoring)
+- [Extending the Example](#extending-the-example)
+- [Troubleshooting](#troubleshooting)
+- [What This Example Shows](#what-this-example-shows)
+- [License](#license)
+
 ## Overview
 
 This canister imports the entire Chinook database (a sample database representing a digital media store) and provides five test endpoints that demonstrate both complex read queries and intensive write operations. The example allows you to assess SQLite's capabilities when running on ICP.
