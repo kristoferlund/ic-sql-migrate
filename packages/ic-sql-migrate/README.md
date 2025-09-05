@@ -44,24 +44,24 @@ Add to both `[dependencies]` and `[build-dependencies]` in your `Cargo.toml`:
 ```toml
 [dependencies]
 # Note: You MUST specify either "sqlite" or "turso" feature - there is no default
-ic-sql-migrate = { version = "0.0.2", features = ["sqlite"] }
+ic-sql-migrate = { version = "0.0.3", features = ["sqlite"] }
 ic-rusqlite = "0.37.0"
 ic-cdk = "0.16"
 
 [build-dependencies]
-ic-sql-migrate = "0.0.1"
+ic-sql-migrate = "0.0.3"
 ```
 
 ### For Turso support:
 ```toml
 [dependencies]
 # Note: You MUST specify either "sqlite" or "turso" feature - there is no default
-ic-sql-migrate = { version = "0.0.2", features = ["turso"] }
+ic-sql-migrate = { version = "0.0.3", features = ["turso"] }
 turso = "0.1.4"
 ic-cdk = "0.16"
 
 [build-dependencies]
-ic-sql-migrate = "0.0.2"
+ic-sql-migrate = "0.0.3"
 ```
 
 **Important:** 
