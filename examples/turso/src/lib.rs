@@ -227,3 +227,24 @@ fn generate_random_data(seed: u32, size: usize) -> String {
 
     result
 }
+
+mod benches {
+    use super::*;
+    use canbench_rs::{bench, bench_fn, BenchResult};
+
+    #[bench(raw)]
+    fn test1_inserting_1000_records_with_1KB_data_each() -> BenchResult {
+        // do some preparation outside of the main estimation part
+        // ...
+
+        // only estimate closure contents
+        let res = bench_fn(|| {
+            perf1();
+        });
+
+        // do some post processing if necessary
+        // ...
+
+        res
+    }
+}
