@@ -1,7 +1,0 @@
-build_cmd: |
-  cargo build -p turso-example --target wasm32-wasip1 --release
-  wasi2ic ../../target/wasm32-wasip1/release/turso_example.wasm ../../target/wasm32-wasip1/release/turso-example-wasi2ic.wasm
-
-wasm_path:
-  ../../target/wasm32-wasip1/release/turso-example-wasi2ic.wasm
-

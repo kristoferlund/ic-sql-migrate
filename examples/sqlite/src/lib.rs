@@ -135,14 +135,14 @@ fn test1() -> String {
             })
             .unwrap();
 
-        for row in rows {
+        rows.into_iter().for_each(|row| {
             if let Ok((id, name, location, _email, rep, total, invoices, avg, first, last)) = row {
                 results.push(format!(
                     "ID: {} | {} ({}) | Rep: {} | Total: ${:.2} | Invoices: {} | Avg: ${:.2} | Period: {} to {}",
                     id, name, location, rep, total, invoices, avg, first, last
                 ));
             }
-        }
+        });
 
         results
     });
@@ -214,14 +214,14 @@ fn test2() -> String {
             })
             .unwrap();
 
-        for row in rows {
+        rows.into_iter().for_each(|row| {
             if let Ok((genre, tracks, sold, revenue, avg_price, artists)) = row {
                 genre_results.push(format!(
                     "Genre: {} | Tracks: {} | Sales: {} | Revenue: ${:.2} | Avg Price: ${:.2} | Artists: {}",
                     genre, tracks, sold, revenue, avg_price, artists
                 ));
             }
-        }
+        });
 
         // Top selling artists
         let artist_query = r#"
@@ -256,14 +256,14 @@ fn test2() -> String {
             })
             .unwrap();
 
-        for row in rows {
+        rows.into_iter().for_each(|row| {
             if let Ok((artist, albums, tracks, revenue, sales)) = row {
                 artist_results.push(format!(
                     "Artist: {} | Albums: {} | Tracks: {} | Revenue: ${:.2} | Sales: {}",
                     artist, albums, tracks, revenue, sales
                 ));
             }
-        }
+        });
 
         (genre_results, artist_results)
     });
@@ -922,27 +922,15 @@ fn test5() -> String {
 
 mod benches {
     use super::*;
-    use canbench_rs::{bench, bench_fn, BenchResult};
+    use canbench_rs::bench;
 
-    #[bench(raw)]
-    fn test1_top_customers_analysis() -> BenchResult {
-        // do some preparation outside of the main estimation part
-        // ...
-
-        // only estimate closure contents
-        let res = bench_fn(|| {
-            test1();
-        });
-
-        // do some post processing if necessary
-        // ...
-
-        res
+    #[bench]
+    fn test1_top_customers_analysis() {
+        test1();
     }
 
     #[bench]
     fn test2_genre_and_artist_analysis() {
-        // benchmark the whole method call
         test2();
     }
 

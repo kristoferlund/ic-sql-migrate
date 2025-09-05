@@ -109,6 +109,44 @@ Each endpoint reports instruction counts, allowing you to evaluate SQLite's perf
 - **Write operations** use 100-500 million instructions for thousands of records
 - Database handles complex JOINs, subqueries, and aggregations efficiently
 
+## Benchmarking with CanBench
+
+This example includes [CanBench](https://github.com/dfinity/canbench) support for performance benchmarking and instruction usage monitoring. CanBench helps track how code changes affect the canister's computational resource consumption.
+
+### Prerequisites for CanBench
+
+Install CanBench globally:
+```bash
+cargo install canbench
+```
+
+### Running Benchmarks
+
+Navigate to the SQLite example directory:
+```bash
+cd examples/sqlite
+```
+
+Run benchmarks to see current performance estimates:
+```bash
+canbench
+```
+
+To persist benchmark results for future comparisons:
+```bash
+canbench --persist
+```
+
+When benchmark results are persisted, subsequent runs will compare against the stored baseline, making it easy to track performance regressions or improvements.
+
+### Understanding Results
+
+CanBench provides detailed instruction counts for your canister operations, helping you:
+- Monitor performance changes across code updates
+- Identify expensive operations that may need optimization
+- Ensure your canister stays within ICP's instruction limits
+- Compare performance before and after optimizations
+
 ## Quick Start
 
 ### 1. Start the local Internet Computer replica:
