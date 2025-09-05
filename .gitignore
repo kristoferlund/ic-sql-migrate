@@ -28,4 +28,4 @@ dist-ssr
 target
 canister_ids.json
 
-*/.canbench/*
+**/.canbench/
