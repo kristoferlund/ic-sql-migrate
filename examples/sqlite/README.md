@@ -1,14 +1,14 @@
-# SQLite Migration Example for ICP Canisters
+# SQLite Chinook Database Example for ICP Canisters
 
-This example demonstrates how to use `ic-sql-migrate` with SQLite in an Internet Computer canister using `ic-rusqlite`.
+This example demonstrates running SQLite databases on the Internet Computer using `ic-sql-migrate` with the complete Chinook music store database. It explores how ICP canisters handle complex databases with thousands of records and sophisticated queries.
 
 ## Overview
 
-This canister showcases automatic database migration management in an ICP environment, demonstrating how migrations are executed during canister initialization and upgrades.
+This canister imports the entire Chinook database (a sample database representing a digital media store) and provides five test endpoints that demonstrate both complex read queries and intensive write operations. The example allows you to assess SQLite's capabilities when running on ICP.
 
 ## Prerequisites
 
-- [DFX](https://internetcomputer.org/docs/current/developer-docs/build/install-upgrade-remove) installed (version 0.15.0 or later)
+- [DFX](https://internetcomputer.org/docs/building-apps/getting-started/install) installed
 - Rust toolchain installed
 - WASI SDK and toolchain configured for `ic-rusqlite`
 
@@ -20,61 +20,94 @@ SQLite support requires the WASI SDK to compile `ic-rusqlite`. Follow the setup 
 curl -fsSL https://raw.githubusercontent.com/wasm-forge/ic-rusqlite/main/prepare.sh | sh
 ```
 
-This will install:
-- `wasi2ic` tool
-- `wasm32-wasip1` Rust target
-- WASI-SDK with WASI-oriented clang
-- Set up required environment variables (`WASI_SDK_PATH` and `PATH`)
+## The Chinook Database
+
+The Chinook database is a sample database that represents a digital media store, including:
+
+### Tables (11 total)
+- **Customer** - Store customers with addresses and support representatives
+- **Employee** - Store employees including sales support agents
+- **Invoice** - Customer purchases
+- **InvoiceLine** - Individual items within invoices
+- **Track** - Music tracks available for purchase
+- **Album** - Albums containing tracks
+- **Artist** - Musical artists
+- **Genre** - Music genres (Rock, Jazz, etc.)
+- **MediaType** - Format of tracks (MP3, AAC, etc.)
+- **Playlist** - Curated track collections
+- **PlaylistTrack** - Many-to-many relationship for playlists
+
+### Data Volume
+- 59 customers across 24 countries
+- 275 artists
+- 347 albums
+- 3,503 tracks
+- 412 invoices with 2,240 line items
+- Pre-populated playlists demonstrating relationships
 
 ## Project Structure
 
 ```
 sqlite/
-├── migrations/          # SQL migration files
-│   ├── 000_initial.sql     # Creates person table
-│   ├── 001_person_seed.sql # Inserts 5 initial records
-│   ├── 002_add_index.sql   # Adds index on name column
-│   ├── 003_alter_table.sql # Adds email column
-│   └── 004_more_seeding.sql # Adds 2 more records with emails
+├── migrations/
+│   └── 000_init.sql    # Complete Chinook database schema and data
 ├── src/
-│   └── lib.rs          # Canister implementation
+│   └── lib.rs          # Canister implementation with test endpoints
 ├── build.rs            # Embeds migrations at compile time
 ├── Cargo.toml          # Dependencies and build configuration
 └── sqlite.did          # Candid interface definition
 ```
 
-## How It Works
+## Test Endpoints
 
-### 1. Build Time
-The `build.rs` script uses `ic_sql_migrate::list()` to discover and embed all SQL files from the `migrations/` directory into the canister binary:
+The canister provides five test endpoints (`test1` through `test5`) that demonstrate various database capabilities:
 
-```rust
-fn main() {
-    ic_sql_migrate::list(Some("migrations")).unwrap();
-}
-```
+### Read Operations (Query Methods)
 
-### 2. Runtime Migration Management
-The canister automatically runs migrations during lifecycle events:
+#### `test1` - Top Customers Analysis
+- Identifies top 15 customers by total purchase amount
+- Performs complex JOINs across Customer, Invoice, and Employee tables
+- Returns customer details, support rep, purchase history, and spending patterns
+- Calculates total spent, average invoice, and purchase date range
 
-- **`init()`**: Runs all migrations when the canister is first deployed
-- **`post_upgrade()`**: Runs any new migrations after canister upgrades
-- **`pre_upgrade()`**: Closes the database connection before upgrades
+#### `test2` - Genre and Artist Analytics
+- Analyzes top 10 genres by revenue with track counts and artist diversity
+- Identifies top 10 best-selling artists with album and track statistics
+- Uses aggregation functions and GROUP BY clauses
+- Demonstrates multi-table JOINs and revenue calculations
 
-### 3. Migration Tracking
-A `_migrations` table is automatically created to track which migrations have been applied, preventing duplicate execution.
+#### `test3` - Sales Trends Analysis
+- Analyzes sales by year and country with customer metrics
+- Evaluates employee performance through their customer sales
+- Shows temporal data handling and geographic distribution
+- Calculates averages, totals, and unique customer counts
 
-## Migration Files
+### Write Operations (Update Methods)
 
-| File | Description | Records Added |
-|------|-------------|---------------|
-| `000_initial.sql` | Creates `person` table with id, name, and age columns | 0 |
-| `001_person_seed.sql` | Inserts John Doe, Jane Smith, Mike Johnson, Sarah Williams, Tom Brown | 5 |
-| `002_add_index.sql` | Creates index on name column for faster queries | 0 |
-| `003_alter_table.sql` | Adds email column (nullable) to person table | 0 |
-| `004_more_seeding.sql` | Inserts Alice Johnson and Bob Smith with emails | 2 |
+#### `test4` - Massive Bulk Invoice Generation
+- Creates 250 new invoices with 5-25 line items each (thousands of records)
+- Implements bulk discount logic and country-specific tax calculations
+- Creates customer statistics in temporary tables
+- Generates audit log entries for all operations
+- Demonstrates transaction handling and bulk INSERT performance
 
-**Total records after all migrations**: 7 persons
+#### `test5` - Complex Playlist Manipulation
+- Creates 15+ genre-specific playlists with up to 500 tracks each
+- Generates year-based retrospective playlists (2009-2014)
+- Simulates collaborative playlists for 30 active customers
+- Creates and populates analytics tables:
+  - `TrackAnalytics` - Play counts, ratings, popularity scores
+  - `PlaylistRecommendations` - Relationships between playlists
+  - `PlaylistMetadata` - Duration, track counts, play statistics
+- Demonstrates complex CREATE TABLE, bulk INSERTs, and data analysis
+
+## Performance Characteristics
+
+Each endpoint reports instruction counts, allowing you to evaluate SQLite's performance on ICP:
+
+- **Read queries** typically use 10-50 million instructions
+- **Write operations** use 100-500 million instructions for thousands of records
+- Database handles complex JOINs, subqueries, and aggregations efficiently
 
 ## Quick Start
 
@@ -85,145 +118,122 @@ dfx start --clean --background
 
 ### 2. Deploy the canister:
 ```bash
-dfx deploy sqlite
+dfx deploy sqlite-example
 ```
 
-### 3. Verify migrations ran successfully:
+### 3. Verify the database loaded correctly:
 ```bash
-dfx canister call sqlite run
+dfx canister call sqlite-example run
 ```
 
 Expected output:
 ```
-Success: All 5 migrations executed. 7 persons in database.
+Success: All 1 migrations executed. Chinook database loaded with 59 customers, 3503 tracks, 347 albums, 412 invoices.
 ```
 
-## Canister Interface
+### 4. Run the test endpoints:
 
-### `run() -> Text` (Query Method)
-Verifies migration status and returns:
-- Number of migrations executed
-- Total number of expected migrations
-- Count of records in the person table
-- Success or error message
+```bash
+# Read operations - analyze existing data
+dfx canister call sqlite-example test1  # Top customers with purchase history
+dfx canister call sqlite-example test2  # Genre and artist revenue analysis
+dfx canister call sqlite-example test3  # Sales trends by geography and time
 
-Example implementation:
-```rust
-#[query]
-fn run() -> String {
-    // Counts migrations in _migrations table
-    // Compares with MIGRATIONS constant
-    // Returns formatted status message
-}
+# Write operations - generate new data
+dfx canister call sqlite-example test4  # Generate 250+ invoices with line items
+dfx canister call sqlite-example test5  # Create playlists and analytics data
+```
+
+## Sample Output
+
+### test1 - Top Customers
+```
+=== Top 15 Customers Analysis (Instructions: 25432187) ===
+
+1. ID: 6 | Helena Holý (Prague, Czech Republic) | Rep: Steve Johnson | Total: $49.62 | Invoices: 7 | Avg: $7.09 | Period: 2009-01-02 to 2013-12-05
+2. ID: 26 | Richard Cunningham (Fort Worth, USA) | Rep: Steve Johnson | Total: $47.62 | Invoices: 7 | Avg: $6.80 | Period: 2009-01-08 to 2012-12-28
+...
+```
+
+### test4 - Bulk Invoice Generation
+```
+Test 4 completed: Created 250 invoices with 3750 line items ($45678.90 total revenue), 250 audit records. Instructions used: 387654321
 ```
 
 ## Key Implementation Details
+
+### Migration System
+The single migration file (`000_init.sql`) contains the entire Chinook database structure and data:
+- 11 CREATE TABLE statements with proper foreign keys
+- Thousands of INSERT statements for initial data
+- Indexes for optimal query performance
 
 ### Connection Management
 Uses `ic_rusqlite::with_connection()` for safe database access:
 ```rust
 with_connection(|mut conn| {
     let conn: &mut Connection = &mut conn;
-    ic_sql_migrate::sqlite::up(conn, MIGRATIONS).unwrap();
+    // Perform database operations
 });
 ```
 
-### Lifecycle Hooks
+### Performance Monitoring
+Each endpoint uses `ic_cdk::api::performance_counter` to track instruction usage:
 ```rust
-#[init]
-fn init() {
-    run_migrations();  // Initialize database schema
-}
-
-#[pre_upgrade]
-fn pre_upgrade() {
-    close_connection();  // Clean shutdown before upgrade
-}
-
-#[post_upgrade]
-fn post_upgrade() {
-    run_migrations();  // Apply any new migrations
-}
+let start_instructions = performance_counter(0);
+// ... perform operations ...
+let end_instructions = performance_counter(0);
+let instructions_used = end_instructions - start_instructions;
 ```
 
-## Testing Migrations
+## Extending the Example
 
-### Check migration status:
-```bash
-dfx canister call sqlite run
-```
+To add new test endpoints:
 
-### View canister logs:
-```bash
-dfx canister logs sqlite
-```
+1. Create a new function with `#[query]` (read) or `#[update]` (write) attribute
+2. Use `with_connection()` to access the database
+3. Track performance with `performance_counter()`
+4. Add the endpoint to `sqlite.did`
 
-### Manually query the database (in canister code):
+Example:
 ```rust
-with_connection(|mut conn| {
-    let count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM person", [], |row| row.get(0))
-        .unwrap();
-    ic_cdk::println!("Person count: {}", count);
-});
+#[query]
+fn test6() -> String {
+    let start = performance_counter(0);
+
+    let result = with_connection(|mut conn| {
+        // Your database operations here
+    });
+
+    let instructions = performance_counter(0) - start;
+    format!("Result: {:?}, Instructions: {}", result, instructions)
+}
 ```
-
-## Upgrading with New Migrations
-
-To add new migrations:
-
-1. Create a new migration file (e.g., `005_add_phone.sql`):
-   ```sql
-   ALTER TABLE person ADD COLUMN phone TEXT;
-   ```
-
-2. Rebuild and upgrade the canister:
-   ```bash
-   dfx deploy sqlite --upgrade-unchanged
-   ```
-
-3. The new migration will automatically run during `post_upgrade()`
 
 ## Troubleshooting
 
 ### "Migration failed" error
-- Check the SQL syntax in your migration files
-- View detailed logs: `dfx canister logs sqlite`
-- Ensure migrations are numbered sequentially
+- Check SQL syntax in the migration file
+- View logs: `dfx canister logs sqlite`
+- Ensure the database isn't corrupted
 
-### "Database locked" error
-- The canister may be processing another request
-- Try again after a moment
-- Check if `pre_upgrade()` properly closes connections
+### Performance issues
+- Monitor instruction counts in responses
+- Consider adding indexes for frequently queried columns
+- Batch write operations in transactions
 
-### Migrations not found
-- Verify `build.rs` is configured correctly
-- Check that migration files have `.sql` extension
-- Ensure files are in the `migrations/` directory
+### Memory constraints
+- The Chinook database is relatively small (~1MB)
+- Monitor canister memory usage with `dfx canister status`
+- Consider pagination for very large result sets
 
-## Architecture Benefits
+## What This Example Shows
 
-1. **Automatic Migration Management**: No manual migration tracking needed
-2. **Upgrade Safety**: Migrations persist across canister upgrades
-3. **Transaction Safety**: All migrations in a deployment run atomically
-4. **Development Workflow**: Easy to add new migrations during development
-5. **Version Control**: Migration files are tracked in git alongside code
-
-## Comparison with Traditional Deployment
-
-| Aspect | Traditional Server | ICP Canister |
-|--------|-------------------|--------------|
-| Migration Trigger | Manual or deployment script | Automatic on init/upgrade |
-| State Persistence | External database | Integrated with canister |
-| Rollback | Supported | Not supported (forward-only) |
-| Connection Management | Connection pool | Single connection with lifecycle |
-| Deployment | Separate DB migration step | Integrated in canister deployment |
-
-## Next Steps
-
-- Explore the [Turso example](../turso) for async database operations
-- Read the [main documentation](../../README.md) for API details
-- Check [ic-rusqlite documentation](https://docs.rs/ic-rusqlite) for database operations
+This example allows you to explore:
+- **SQLite's capabilities on ICP** with complex queries and operations
+- **Performance characteristics** when working with thousands of records
+- **SQL feature support** including JOINs, subqueries, and transactions
+- **Database patterns** familiar from traditional applications
 
 ## License
 

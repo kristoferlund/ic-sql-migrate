@@ -1,7 +1,4 @@
-use ic_cdk::{
-    api::{performance_counter, time},
-    init, post_upgrade, pre_upgrade, query, update,
-};
+use ic_cdk::{api::performance_counter, init, post_upgrade, pre_upgrade, query, update};
 use ic_rusqlite::{close_connection, with_connection, Connection};
 
 static MIGRATIONS: &[ic_sql_migrate::Migration] = ic_sql_migrate::include!();
@@ -46,17 +43,34 @@ fn run() -> String {
     if migration_count == total_migrations {
         ic_cdk::println!("All {} migrations have run successfully.", total_migrations);
 
-        let person_count = with_connection(|mut conn| {
+        // Count various tables in Chinook database
+        let (customers, tracks, albums, invoices) = with_connection(|mut conn| {
             let conn: &mut Connection = &mut conn;
-            let count: i64 = conn
-                .query_row("SELECT COUNT(*) FROM person", [], |row| row.get(0))
+            let customers: i64 = conn
+                .query_row("SELECT COUNT(*) FROM Customer", [], |row| row.get(0))
                 .unwrap_or(0);
-            count
+            let tracks: i64 = conn
+                .query_row("SELECT COUNT(*) FROM Track", [], |row| row.get(0))
+                .unwrap_or(0);
+            let albums: i64 = conn
+                .query_row("SELECT COUNT(*) FROM Album", [], |row| row.get(0))
+                .unwrap_or(0);
+            let invoices: i64 = conn
+                .query_row("SELECT COUNT(*) FROM Invoice", [], |row| row.get(0))
+                .unwrap_or(0);
+            (customers, tracks, albums, invoices)
         });
 
-        ic_cdk::println!("Found {} records in person table.", person_count);
+        ic_cdk::println!(
+            "Chinook database loaded: {} customers, {} tracks, {} albums, {} invoices",
+            customers,
+            tracks,
+            albums,
+            invoices
+        );
         format!(
-            "Success: All {total_migrations} migrations executed. {person_count} persons in database."
+            "Success: All {} migrations executed. Chinook database loaded with {} customers, {} tracks, {} albums, {} invoices.",
+            total_migrations, customers, tracks, albums, invoices
         )
     } else {
         ic_cdk::println!(
@@ -69,13 +83,13 @@ fn run() -> String {
 }
 
 #[query]
-fn chinook_top_customers() -> String {
+fn test1() -> String {
     use ic_cdk::api::performance_counter;
 
     // Record starting instruction count
     let start_instructions = performance_counter(0);
 
-    ic_cdk::println!("Running Chinook top customers analysis...");
+    ic_cdk::println!("Test 1: Running top customers analysis...");
 
     let result = with_connection(|mut conn| {
         let conn: &mut Connection = &mut conn;
@@ -122,7 +136,7 @@ fn chinook_top_customers() -> String {
             .unwrap();
 
         for row in rows {
-            if let Ok((id, name, location, email, rep, total, invoices, avg, first, last)) = row {
+            if let Ok((id, name, location, _email, rep, total, invoices, avg, first, last)) = row {
                 results.push(format!(
                     "ID: {} | {} ({}) | Rep: {} | Total: ${:.2} | Invoices: {} | Avg: ${:.2} | Period: {} to {}",
                     id, name, location, rep, total, invoices, avg, first, last
@@ -153,13 +167,13 @@ fn chinook_top_customers() -> String {
 }
 
 #[query]
-fn chinook_genre_analysis() -> String {
+fn test2() -> String {
     use ic_cdk::api::performance_counter;
 
     // Record starting instruction count
     let start_instructions = performance_counter(0);
 
-    ic_cdk::println!("Running Chinook genre and artist analysis...");
+    ic_cdk::println!("Test 2: Running genre and artist analysis...");
 
     let result = with_connection(|mut conn| {
         let conn: &mut Connection = &mut conn;
@@ -286,13 +300,13 @@ fn chinook_genre_analysis() -> String {
 }
 
 #[query]
-fn chinook_sales_trends() -> String {
+fn test3() -> String {
     use ic_cdk::api::performance_counter;
 
     // Record starting instruction count
     let start_instructions = performance_counter(0);
 
-    ic_cdk::println!("Running Chinook sales trends analysis...");
+    ic_cdk::println!("Test 3: Running sales trends analysis...");
 
     let result = with_connection(|mut conn| {
         let conn: &mut Connection = &mut conn;
@@ -414,76 +428,494 @@ fn chinook_sales_trends() -> String {
 }
 
 #[update]
-fn perf1() -> String {
-    // Record starting instruction count and time
+fn test4() -> String {
+    // Record starting instruction count
     let start_instructions = performance_counter(0);
-    let start_time = time();
 
-    ic_cdk::println!("Starting performance test: inserting 1000 records with ~1KB data each");
-
-    // Generate random seed from current time
-    let seed = start_time as u32;
+    ic_cdk::println!("Test 4: Massive bulk invoice generation with complex operations");
 
     let result = with_connection(|mut conn| {
         let conn: &mut Connection = &mut conn;
 
-        // Start a transaction for better performance
+        // Get all customers and tracks for creating invoices
+        let customers: Vec<(i32, String, Option<String>, String, Option<String>)> = conn
+            .prepare("SELECT CustomerId, City, State, Country, PostalCode FROM Customer")
+            .unwrap()
+            .query_map([], |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            })
+            .unwrap()
+            .filter_map(Result::ok)
+            .collect();
+
+        let tracks: Vec<(i32, f64, String, i32)> = conn
+            .prepare("SELECT t.TrackId, t.UnitPrice, g.Name, t.Milliseconds FROM Track t JOIN Genre g ON t.GenreId = g.GenreId")
+            .unwrap()
+            .query_map([], |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                ))
+            })
+            .unwrap()
+            .filter_map(Result::ok)
+            .collect();
+
+        // Start transaction for bulk operations
         let tx = conn.transaction().unwrap();
 
-        // Prepare the insert statement
-        let mut stmt = tx
-            .prepare("INSERT INTO perf_test (data, random_value) VALUES (?1, ?2)")
+        // Get the next invoice ID
+        let max_invoice_id: i32 = tx
+            .query_row(
+                "SELECT COALESCE(MAX(InvoiceId), 0) FROM Invoice",
+                [],
+                |row| row.get(0),
+            )
             .unwrap();
 
-        // Insert 1000 records
-        for i in 0..1000 {
-            // Generate ~1KB of random data
-            let data = generate_random_data(seed + i, 1024);
-            let random_value = ((seed + i) * 2654435761) % 1000000; // Simple hash for random value
-
-            stmt.execute([
-                &data as &dyn ic_rusqlite::ToSql,
-                &random_value as &dyn ic_rusqlite::ToSql,
-            ])
+        let max_line_id: i32 = tx
+            .query_row(
+                "SELECT COALESCE(MAX(InvoiceLineId), 0) FROM InvoiceLine",
+                [],
+                |row| row.get(0),
+            )
             .unwrap();
+
+        let mut invoice_count = 0;
+        let mut line_count = 0;
+        let mut total_revenue = 0.0;
+        let mut current_invoice_id = max_invoice_id + 1;
+        let mut current_line_id = max_line_id + 1;
+
+        // Create 250 new invoices with varying complexity
+        for i in 0..250 {
+            let customer_idx = (i * 7 + i * i) % customers.len();
+            let (customer_id, city, state, country, postal) = &customers[customer_idx];
+
+            // Generate invoice date spread across 2 years
+            let days_offset = (i * 3) % 730;
+
+            // Insert invoice
+            tx.execute(
+                "INSERT INTO Invoice (InvoiceId, CustomerId, InvoiceDate, BillingAddress, BillingCity, BillingState, BillingCountry, BillingPostalCode, Total)
+                 VALUES (?1, ?2, datetime('now', '-' || ?3 || ' days'), ?4, ?5, ?6, ?7, ?8, 0.0)",
+                ic_rusqlite::params![
+                    current_invoice_id,
+                    customer_id,
+                    days_offset,
+                    format!("{} Commerce Blvd Suite {}", 1000 + i, i % 200),
+                    city,
+                    state,
+                    country,
+                    postal
+                ],
+            )
+            .unwrap();
+
+            // Variable line items (5-25 per invoice for high complexity)
+            let line_items_count = 5 + ((i * 13) % 21);
+            let mut invoice_total = 0.0;
+
+            for j in 0..line_items_count {
+                // Select tracks with pattern to ensure variety
+                let track_idx = ((i * 31 + j * 17) + (j * j)) % tracks.len();
+                let (track_id, unit_price, _genre, _duration) = &tracks[track_idx];
+
+                // Variable quantity (1-5) with bias towards smaller quantities
+                let quantity = 1 + ((j + i) % 5);
+
+                // Apply bulk discounts for larger quantities
+                let discount_rate = if quantity > 3 { 0.9 } else { 1.0 };
+                let adjusted_price = unit_price * discount_rate;
+
+                tx.execute(
+                    "INSERT INTO InvoiceLine (InvoiceLineId, InvoiceId, TrackId, UnitPrice, Quantity)
+                     VALUES (?1, ?2, ?3, ?4, ?5)",
+                    ic_rusqlite::params![
+                        current_line_id,
+                        current_invoice_id,
+                        track_id,
+                        adjusted_price,
+                        quantity
+                    ],
+                )
+                .unwrap();
+
+                invoice_total += adjusted_price * quantity as f64;
+                current_line_id += 1;
+                line_count += 1;
+            }
+
+            // Update invoice total with tax calculation (varies by country)
+            let tax_rate = match country.as_str() {
+                "USA" => 1.08,
+                "Canada" => 1.13,
+                "Brazil" => 1.17,
+                _ => 1.10,
+            };
+            let final_total = invoice_total * tax_rate;
+
+            tx.execute(
+                "UPDATE Invoice SET Total = ?1 WHERE InvoiceId = ?2",
+                ic_rusqlite::params![final_total, current_invoice_id],
+            )
+            .unwrap();
+
+            total_revenue += final_total;
+            current_invoice_id += 1;
+            invoice_count += 1;
         }
 
-        drop(stmt);
-        tx.commit().unwrap();
+        // Perform additional bulk updates to stress the database
 
-        // Count total records in the table
-        let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM perf_test", [], |row| row.get(0))
+        // Update customer statistics in a temporary table
+        tx.execute(
+            "CREATE TEMP TABLE IF NOT EXISTS CustomerStats (
+                CustomerId INTEGER PRIMARY KEY,
+                RecentPurchases INTEGER,
+                TotalSpent REAL
+            )",
+            [],
+        )
+        .unwrap();
+
+        tx.execute(
+            "INSERT OR REPLACE INTO CustomerStats (CustomerId, RecentPurchases, TotalSpent)
+            SELECT
+                c.CustomerId,
+                COUNT(DISTINCT i.InvoiceId) as RecentPurchases,
+                COALESCE(SUM(i.Total), 0) as TotalSpent
+            FROM Customer c
+            LEFT JOIN Invoice i ON c.CustomerId = i.CustomerId
+            WHERE i.InvoiceDate > datetime('now', '-90 days')
+            GROUP BY c.CustomerId",
+            [],
+        )
+        .unwrap();
+
+        // Create audit log entries for new invoices
+        tx.execute(
+            "CREATE TABLE IF NOT EXISTS InvoiceAudit (
+                AuditId INTEGER PRIMARY KEY AUTOINCREMENT,
+                InvoiceId INTEGER,
+                Action TEXT,
+                Timestamp TEXT,
+                Details TEXT
+            )",
+            [],
+        )
+        .unwrap();
+
+        let audit_count = tx
+            .execute(
+                "INSERT INTO InvoiceAudit (InvoiceId, Action, Timestamp, Details)
+            SELECT
+                InvoiceId,
+                'BULK_CREATE',
+                datetime('now'),
+                'Bulk invoice creation batch ' || InvoiceId
+            FROM Invoice
+            WHERE InvoiceId > ?",
+                [max_invoice_id],
+            )
             .unwrap();
 
-        count
+        tx.commit().unwrap();
+        (invoice_count, line_count, total_revenue, audit_count)
     });
 
-    // Record ending instruction count and time
     let end_instructions = performance_counter(0);
     let instructions_used = end_instructions - start_instructions;
 
-    ic_cdk::println!("Performance test completed");
+    ic_cdk::println!("Test 4 completed");
     ic_cdk::println!("Instructions used: {}", instructions_used);
-    ic_cdk::println!("Total records in perf_test table: {}", result);
 
     format!(
-        "Performance test completed: Inserted 1000 records. Instructions used: {instructions_used}. Total records: {result}"
+        "Test 4 completed: Created {} invoices with {} line items (${:.2} total revenue), {} audit records. Instructions used: {}",
+        result.0, result.1, result.2, result.3, instructions_used
     )
 }
 
-/// Generate random-looking data of specified size
-fn generate_random_data(seed: u32, size: usize) -> String {
-    const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    let mut result = String::with_capacity(size);
-    let mut current = seed;
+#[update]
+fn test5() -> String {
+    // Record starting instruction count
+    let start_instructions = performance_counter(0);
 
-    for _ in 0..size {
-        // Simple linear congruential generator
-        current = ((current as u64 * 1664525 + 1013904223) % (1 << 32)) as u32;
-        let char_index = (current % CHARS.len() as u32) as usize;
-        result.push(CHARS[char_index] as char);
-    }
+    ic_cdk::println!("Test 5: Massive playlist generation and complex track analysis");
 
-    result
+    let result = with_connection(|mut conn| {
+        let conn: &mut Connection = &mut conn;
+
+        // Start a large transaction
+        let tx = conn.transaction().unwrap();
+
+        // Get max playlist ID
+        let max_playlist_id: i32 = tx
+            .query_row(
+                "SELECT COALESCE(MAX(PlaylistId), 0) FROM Playlist",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+
+        let mut total_playlists_created = 0;
+        let mut total_tracks_added = 0;
+
+        // Create multiple themed playlists based on complex criteria
+
+        // 1. Genre-based mega playlists
+        let genres: Vec<(i32, String)> = tx
+            .prepare("SELECT GenreId, Name FROM Genre")
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .filter_map(Result::ok)
+            .collect();
+
+        for (genre_id, genre_name) in &genres[..genres.len().min(15)] {
+            let playlist_id = max_playlist_id + 1 + total_playlists_created;
+
+            // Create genre playlist
+            tx.execute(
+                "INSERT INTO Playlist (PlaylistId, Name) VALUES (?1, ?2)",
+                ic_rusqlite::params![playlist_id, format!("Ultimate {} Collection", genre_name)],
+            )
+            .unwrap();
+
+            // Add all tracks from this genre plus related tracks
+            let tracks_inserted = tx
+                .execute(
+                    "INSERT OR IGNORE INTO PlaylistTrack (PlaylistId, TrackId)
+                 SELECT ?1, t.TrackId
+                 FROM Track t
+                 WHERE (t.GenreId = ?2
+                 OR t.AlbumId IN (
+                     SELECT DISTINCT t2.AlbumId
+                     FROM Track t2
+                     WHERE t2.GenreId = ?2
+                 ))
+                 LIMIT 500",
+                    ic_rusqlite::params![playlist_id, genre_id],
+                )
+                .unwrap();
+
+            total_tracks_added += tracks_inserted;
+            total_playlists_created += 1;
+        }
+
+        // 2. Year-based playlists with complex filtering
+        for year in 2009..2014 {
+            let playlist_id = max_playlist_id + 1 + total_playlists_created;
+
+            tx.execute(
+                "INSERT INTO Playlist (PlaylistId, Name) VALUES (?1, ?2)",
+                ic_rusqlite::params![playlist_id, format!("Best of {} Retrospective", year)],
+            )
+            .unwrap();
+
+            // Add tracks that were popular in that year
+            let tracks_inserted = tx
+                .execute(
+                    "INSERT OR IGNORE INTO PlaylistTrack (PlaylistId, TrackId)
+                 SELECT ?1, il.TrackId
+                 FROM InvoiceLine il
+                 JOIN Invoice i ON il.InvoiceId = i.InvoiceId
+                 WHERE strftime('%Y', i.InvoiceDate) = ?2
+                 GROUP BY il.TrackId
+                 HAVING COUNT(*) > 2
+                 ORDER BY COUNT(*) DESC
+                 LIMIT 300",
+                    ic_rusqlite::params![playlist_id, year.to_string()],
+                )
+                .unwrap();
+
+            total_tracks_added += tracks_inserted;
+            total_playlists_created += 1;
+        }
+
+        // 3. Create collaborative playlists (simulating user interactions)
+        let active_customers: Vec<i32> = tx
+            .prepare(
+                "SELECT DISTINCT CustomerId
+                 FROM Invoice
+                 WHERE InvoiceDate > datetime('now', '-180 days')
+                 LIMIT 30",
+            )
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .filter_map(Result::ok)
+            .collect();
+
+        for (idx, customer_id) in active_customers.iter().enumerate() {
+            let playlist_id = max_playlist_id + 1 + total_playlists_created;
+
+            // Create collaborative playlist
+            tx.execute(
+                "INSERT INTO Playlist (PlaylistId, Name) VALUES (?1, ?2)",
+                ic_rusqlite::params![playlist_id, format!("Collaborative Mix #{}", idx + 1)],
+            )
+            .unwrap();
+
+            // Add tracks based on multiple customers' preferences
+            let tracks_inserted = tx
+                .execute(
+                    "INSERT OR IGNORE INTO PlaylistTrack (PlaylistId, TrackId)
+                 SELECT ?1, t.TrackId
+                 FROM Track t
+                 WHERE t.TrackId IN (
+                     SELECT DISTINCT il.TrackId
+                     FROM InvoiceLine il
+                     JOIN Invoice i ON il.InvoiceId = i.InvoiceId
+                     WHERE i.CustomerId IN (?2, ?3, ?4)
+                     ORDER BY RANDOM()
+                     LIMIT 100
+                 )",
+                    ic_rusqlite::params![
+                        playlist_id,
+                        customer_id,
+                        active_customers[(idx + 1) % active_customers.len()],
+                        active_customers[(idx + 2) % active_customers.len()]
+                    ],
+                )
+                .unwrap();
+
+            total_tracks_added += tracks_inserted;
+            total_playlists_created += 1;
+        }
+
+        // 4. Create track metadata and analytics tables
+        tx.execute(
+            "CREATE TABLE IF NOT EXISTS TrackAnalytics (
+                TrackId INTEGER PRIMARY KEY,
+                PlayCount INTEGER DEFAULT 0,
+                SkipCount INTEGER DEFAULT 0,
+                Rating REAL DEFAULT 0,
+                LastPlayed TEXT,
+                Popularity INTEGER DEFAULT 0,
+                FOREIGN KEY (TrackId) REFERENCES Track(TrackId)
+            )",
+            [],
+        )
+        .unwrap();
+
+        // Populate analytics with complex calculations
+        let analytics_inserted = tx.execute(
+            "INSERT OR REPLACE INTO TrackAnalytics (TrackId, PlayCount, SkipCount, Rating, LastPlayed, Popularity)
+            SELECT
+                t.TrackId,
+                COALESCE(COUNT(DISTINCT il.InvoiceId), 0) * (1 + ABS(RANDOM() % 10)) as PlayCount,
+                ABS(RANDOM() % 100) as SkipCount,
+                3.0 + (RANDOM() % 20) / 10.0 as Rating,
+                datetime('now', '-' || ABS(RANDOM() % 30) || ' days') as LastPlayed,
+                COALESCE(COUNT(DISTINCT il.InvoiceId), 0) * 100 /
+                    (1 + julianday('now') - julianday(MIN(i.InvoiceDate))) as Popularity
+            FROM Track t
+            LEFT JOIN InvoiceLine il ON t.TrackId = il.TrackId
+            LEFT JOIN Invoice i ON il.InvoiceId = i.InvoiceId
+            GROUP BY t.TrackId
+            HAVING COUNT(il.InvoiceId) > 0",
+            [],
+        )
+        .unwrap();
+
+        // 5. Create playlist recommendations table
+        tx.execute(
+            "CREATE TABLE IF NOT EXISTS PlaylistRecommendations (
+                RecommendationId INTEGER PRIMARY KEY AUTOINCREMENT,
+                PlaylistId INTEGER,
+                RecommendedPlaylistId INTEGER,
+                Score REAL,
+                Reason TEXT,
+                CreatedAt TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (PlaylistId) REFERENCES Playlist(PlaylistId),
+                FOREIGN KEY (RecommendedPlaylistId) REFERENCES Playlist(PlaylistId)
+            )",
+            [],
+        )
+        .unwrap();
+
+        // Generate playlist relationships based on shared tracks
+        let relationships_created = tx.execute(
+            "INSERT INTO PlaylistRecommendations (PlaylistId, RecommendedPlaylistId, Score, Reason)
+            SELECT
+                p1.PlaylistId,
+                p2.PlaylistId,
+                CAST(COUNT(*) AS REAL) /
+                    (SELECT COUNT(*) FROM PlaylistTrack WHERE PlaylistId = p1.PlaylistId) as Score,
+                'Based on ' || COUNT(*) || ' shared tracks'
+            FROM Playlist p1
+            JOIN PlaylistTrack pt1 ON p1.PlaylistId = pt1.PlaylistId
+            JOIN PlaylistTrack pt2 ON pt1.TrackId = pt2.TrackId
+            JOIN Playlist p2 ON pt2.PlaylistId = p2.PlaylistId
+            WHERE p1.PlaylistId < p2.PlaylistId
+            AND p1.PlaylistId > ?
+            GROUP BY p1.PlaylistId, p2.PlaylistId
+            HAVING COUNT(*) > 10
+            ORDER BY Score DESC
+            LIMIT 500",
+            ic_rusqlite::params![max_playlist_id],
+        )
+        .unwrap();
+
+        // 6. Update existing playlists with metadata
+        tx.execute(
+            "CREATE TABLE IF NOT EXISTS PlaylistMetadata (
+                PlaylistId INTEGER PRIMARY KEY,
+                Duration INTEGER,
+                TrackCount INTEGER,
+                LastModified TEXT,
+                PlayCount INTEGER DEFAULT 0,
+                FOREIGN KEY (PlaylistId) REFERENCES Playlist(PlaylistId)
+            )",
+            [],
+        )
+        .unwrap();
+
+        let metadata_updated = tx.execute(
+            "INSERT OR REPLACE INTO PlaylistMetadata (PlaylistId, Duration, TrackCount, LastModified, PlayCount)
+            SELECT
+                p.PlaylistId,
+                COALESCE(SUM(t.Milliseconds), 0) as Duration,
+                COUNT(pt.TrackId) as TrackCount,
+                datetime('now') as LastModified,
+                ABS(RANDOM() % 1000) as PlayCount
+            FROM Playlist p
+            LEFT JOIN PlaylistTrack pt ON p.PlaylistId = pt.PlaylistId
+            LEFT JOIN Track t ON pt.TrackId = t.TrackId
+            WHERE p.PlaylistId > ?
+            GROUP BY p.PlaylistId",
+            ic_rusqlite::params![max_playlist_id],
+        )
+        .unwrap();
+
+        tx.commit().unwrap();
+
+        (
+            total_playlists_created,
+            total_tracks_added,
+            analytics_inserted,
+            relationships_created,
+            metadata_updated,
+        )
+    });
+
+    let end_instructions = performance_counter(0);
+    let instructions_used = end_instructions - start_instructions;
+
+    ic_cdk::println!("Test 5 completed");
+    ic_cdk::println!("Instructions used: {}", instructions_used);
+
+    format!(
+        "Test 5 completed: Created {} playlists with {} track assignments, {} analytics records, {} relationships, {} metadata entries. Instructions used: {}",
+        result.0, result.1, result.2, result.3, result.4, instructions_used
+    )
 }

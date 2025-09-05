@@ -69,7 +69,10 @@ ic-sql-migrate = "0.0.2"
 
 #### 1. Create migration files
 
-Create a `migrations/` directory with SQL files:
+Create a `migrations/` directory with SQL files. Each migration should be:
+- **Numbered sequentially** (e.g., `000_initial.sql`, `001_add_users.sql`)
+- **Idempotent when possible** (use `IF NOT EXISTS` clauses)
+- **Forward-only** (this library doesn't support rollbacks)
 
 ```sql
 -- migrations/000_initial.sql
@@ -82,6 +85,8 @@ CREATE TABLE IF NOT EXISTS users (
 
 #### 2. Set up build.rs
 
+The `list()` function scans your migrations directory at compile time and generates code to embed the SQL files into your canister binary. This makes the migrations available as static data in your compiled canister:
+
 ```rust
 fn main() {
     ic_sql_migrate::list(Some("migrations")).unwrap();
@@ -89,6 +94,8 @@ fn main() {
 ```
 
 #### 3. Use in your canister
+
+The `include!()` macro incorporates the migrations that were discovered by `list()` in step 2. It creates a static array of `Migration` objects containing your SQL files' contents, which you can then pass to the `up()` function to execute them:
 
 **SQLite Example:**
 
@@ -151,24 +158,40 @@ async fn post_upgrade() {
 
 Complete working examples are provided for both database backends:
 
-### 📁 [SQLite Example](./examples/sqlite)
-Demonstrates SQLite integration with `ic-rusqlite` in an ICP canister:
-- Synchronous migration execution
-- Automatic connection management
-- 5 sample migrations creating and populating a `person` table
+### 📁 [SQLite Example](./examples/sqlite) - Advanced Database Operations
+**Showcases high-performance SQLite on ICP with the full Chinook database:**
+- **Complete Database**: Imports the entire Chinook music store database (11 tables, thousands of records)
+- **Complex Queries**: Demonstrates advanced SQL operations including multi-table JOINs, aggregations, and analytics
+- **Read Operations** (`test1-3`):
+  - Top customers analysis with purchase history
+  - Genre and artist revenue analytics
+  - Sales trends and employee performance metrics
+- **Write Operations** (`test4-5`):
+  - Bulk invoice generation (250+ invoices with complex line items)
+  - Massive playlist creation with track analytics and recommendations
+- **Performance Tracking**: Each operation reports instruction counts, demonstrating SQLite's efficiency on ICP
+- **Stress Testing**: Operations designed to process thousands of records and complex transactions
 
 ```bash
 cd examples/sqlite
 dfx start --clean
 dfx deploy
-dfx canister call sqlite run
+dfx canister call sqlite run        # Verify migrations
+dfx canister call sqlite test1      # Top customers analysis
+dfx canister call sqlite test2      # Genre/artist analytics
+dfx canister call sqlite test3      # Sales trends
+dfx canister call sqlite test4      # Bulk invoice generation
+dfx canister call sqlite test5      # Playlist manipulation
 ```
 
-### 📁 [Turso Example](./examples/turso)  
+The SQLite example proves that complex, production-grade databases can run efficiently on the Internet Computer, with operations processing thousands of records in a single call while tracking instruction usage.
+
+### 📁 [Turso Example](./examples/turso) - Basic Migration Demo
 Shows Turso database usage in an ICP canister:
 - Async migration execution
 - Stable memory persistence with WASI polyfill
-- Same migrations as SQLite example for comparison
+- Simple person table with basic operations
+- Suitable for simpler use cases (Turso's SQL implementation is still evolving)
 
 ```bash
 cd examples/turso
@@ -177,7 +200,7 @@ dfx deploy
 dfx canister call turso run
 ```
 
-Both examples implement the same functionality, demonstrating that `ic-sql-migrate` provides a consistent migration experience regardless of the database backend.
+**Note**: The SQLite example demonstrates significantly more advanced capabilities, making it the recommended choice for complex database operations on ICP.
 
 ## API Reference
 

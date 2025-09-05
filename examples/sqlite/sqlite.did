@@ -1,7 +1,0 @@
-service : () -> {
-  run : () -> (text) query;
-  chinook_top_customers : () -> (text) query;
-  chinook_genre_analysis : () -> (text) query;
-  chinook_sales_trends : () -> (text) query;
-  perf1 : () -> (text);
-}

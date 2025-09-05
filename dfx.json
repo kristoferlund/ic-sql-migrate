@@ -1,7 +1,7 @@
 {
   "canisters": {
-    "turso": {
-      "candid": "examples/turso/turso.did",
+    "turso-example": {
+      "candid": "examples/turso/turso-example.did",
       "package": "turso",
       "declarations": {
         "output": "examples/turso/declarations"
@@ -18,8 +18,8 @@
         }
       ]
     },
-    "sqlite": {
-      "candid": "examples/sqlite/sqlite.did",
+    "sqlite-example": {
+      "candid": "examples/sqlite/sqlite-example.did",
       "package": "sqlite",
       "declarations": {
         "output": "examples/sqlite/declarations"

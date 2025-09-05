@@ -1,0 +1,8 @@
+service : () -> {
+  run : () -> (text) query;
+  test1 : () -> (text) query;
+  test2 : () -> (text) query;
+  test3 : () -> (text) query;
+  test4 : () -> (text);
+  test5 : () -> (text);
+}
