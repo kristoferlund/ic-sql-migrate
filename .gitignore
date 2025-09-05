@@ -27,3 +27,5 @@ dist-ssr
 .dfx
 target
 canister_ids.json
+
+**/.canbench/

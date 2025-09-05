@@ -919,3 +919,45 @@ fn test5() -> String {
         result.0, result.1, result.2, result.3, result.4, instructions_used
     )
 }
+
+mod benches {
+    use super::*;
+    use canbench_rs::{bench, bench_fn, BenchResult};
+
+    #[bench(raw)]
+    fn test1_top_customers_analysis() -> BenchResult {
+        // do some preparation outside of the main estimation part
+        // ...
+
+        // only estimate closure contents
+        let res = bench_fn(|| {
+            test1();
+        });
+
+        // do some post processing if necessary
+        // ...
+
+        res
+    }
+
+    #[bench]
+    fn test2_genre_and_artist_analysis() {
+        // benchmark the whole method call
+        test2();
+    }
+
+    #[bench]
+    fn test3_sales_trends_analysis() {
+        test3();
+    }
+
+    #[bench]
+    fn test4_massive_bulk_invoice_generation_with_complex_operations() {
+        test4();
+    }
+
+    #[bench]
+    fn test5_massive_playlist_generation_and_complex_track_analysis() {
+        test5();
+    }
+}

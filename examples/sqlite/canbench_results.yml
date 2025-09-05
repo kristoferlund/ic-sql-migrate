@@ -1,0 +1,37 @@
+benches:
+  test1_top_customers_analysis:
+    total:
+      calls: 1
+      instructions: 6246744
+      heap_increase: 0
+      stable_memory_increase: 0
+    scopes: {}
+  test2_genre_and_artist_analysis:
+    total:
+      calls: 1
+      instructions: 84164310
+      heap_increase: 0
+      stable_memory_increase: 0
+    scopes: {}
+  test3_sales_trends_analysis:
+    total:
+      calls: 1
+      instructions: 12966525
+      heap_increase: 0
+      stable_memory_increase: 0
+    scopes: {}
+  test4_massive_bulk_invoice_generation_with_complex_operations:
+    total:
+      calls: 1
+      instructions: 345277317
+      heap_increase: 4
+      stable_memory_increase: 0
+    scopes: {}
+  test5_massive_playlist_generation_and_complex_track_analysis:
+    total:
+      calls: 1
+      instructions: 583236194
+      heap_increase: 4
+      stable_memory_increase: 0
+    scopes: {}
+version: 0.2.1
