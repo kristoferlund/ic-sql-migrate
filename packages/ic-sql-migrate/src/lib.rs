@@ -22,12 +22,30 @@
 //! # Quick Start for ICP Canisters
 //!
 //! ## 1. Prerequisites
+//! In addition to having the Rust toolchain setup and dfx, you need to install the `wasi2ic` tool that replaces WebAssembly System Interface (WASI) specific function calls with their corresponding polyfill implementations. This allows you to run Wasm binaries compiled for wasm32-wasi on the Internet Computer.
 //!
-//! ### For SQLite (via ic-rusqlite)
-//! SQLite support requires the WASI SDK toolchain. Follow the setup instructions at
-//! [ic-rusqlite](https://crates.io/crates/ic-rusqlite) or run:
 //! ```bash
-//! curl -fsSL https://raw.githubusercontent.com/wasm-forge/ic-rusqlite/main/prepare.sh | sh
+//! cargo install wasi2ic
+//! ```
+//!
+//! ### Configure dfx.json
+//! You also need to configure your `dfx.json` to compile for the `wasm32-wasip1` target and use `wasi2ic` to process the binary:
+//!
+//! ```json
+//! {
+//!   "canisters": {
+//!     "your_canister": {
+//!       "candid": "your_canister.did",
+//!       "package": "your_canister",
+//!       "type": "custom",
+//!       "build": [
+//!         "cargo build --target wasm32-wasip1 --release",
+//!         "wasi2ic target/wasm32-wasip1/release/your_canister.wasm target/wasm32-wasip1/release/your_canister-wasi2ic.wasm"
+//!       ],
+//!       "wasm": "target/wasm32-wasip1/release/your_canister-wasi2ic.wasm"
+//!     }
+//!   }
+//! }
 //! ```
 //!
 //! ### For Turso
@@ -36,12 +54,13 @@
 //! ## 2. Add to Cargo.toml
 //! ```toml
 //! [dependencies]
-//! ic-sql-migrate = { version = "0.0.1", features = ["sqlite"] }
-//! ic-rusqlite = "0.37.0"  # or turso = "0.1.4" for Turso
-//! ic-cdk = "0.16"
+//! ic-sql-migrate = { version = "0.0.4", features = ["sqlite"] } # or feature "turso"
+//! ic-rusqlite = { version = "0.4.2", features = ["precompiled"], default-features = false }
+//! # or turso = "0.1.4" for Turso
+//! ic-cdk = "0.18.7"
 //!
 //! [build-dependencies]
-//! ic-sql-migrate = "0.0.1"
+//! ic-sql-migrate = "0.0.4"
 //! ```
 //!
 //! ## 3. Create build.rs

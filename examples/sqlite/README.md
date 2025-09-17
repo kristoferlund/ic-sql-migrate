@@ -6,7 +6,7 @@ This example demonstrates running SQLite databases on the Internet Computer usin
 
 - [Overview](#overview)
 - [Prerequisites](#prerequisites)
-  - [Setting up WASI SDK for SQLite](#setting-up-wasi-sdk-for-sqlite)
+  
 - [The Chinook Database](#the-chinook-database)
   - [Tables (11 total)](#tables-11-total)
   - [Data Volume](#data-volume)
@@ -36,17 +36,9 @@ This canister imports the entire Chinook database (a sample database representin
 
 ## Prerequisites
 
-- [DFX](https://internetcomputer.org/docs/building-apps/getting-started/install) installed
-- Rust toolchain installed
-- WASI SDK and toolchain configured for `ic-rusqlite`
-
-### Setting up WASI SDK for SQLite
-
-SQLite support requires the WASI SDK to compile `ic-rusqlite`. Follow the setup instructions at [ic-rusqlite](https://crates.io/crates/ic-rusqlite) or run this automated setup script:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/wasm-forge/ic-rusqlite/main/prepare.sh | sh
-```
+- Rust toolchain 
+- [dfx](https://internetcomputer.org/docs/building-apps/getting-started/install) 
+- [wasi2ic](https://github.com/wasm-forge/wasi2ic) 
 
 ## The Chinook Database
 

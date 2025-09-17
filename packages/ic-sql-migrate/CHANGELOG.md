@@ -7,7 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.3] - 2025-01-02
+## [0.0.4] - 2025-09-17
+
+### Changed
+- Improved documentation
+- Removed `bundled` and `wasm32-wasi-vfs` features to `rusqlite` dependency
+- Removed unneeded `tokio` dependency
+
+## [0.0.3] - 2025-09-10
 
 ### Added
 - Added `bundled` and `wasm32-wasi-vfs` features to `rusqlite` dependency

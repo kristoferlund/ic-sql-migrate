@@ -11,8 +11,9 @@ A lightweight database migration library for Internet Computer (ICP) canisters w
 - [Features](#features)
 - [Quick Start](#quick-start)
   - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
-  - [Basic Usage](#basic-usage)
+- [Installation](#installation)
+- [Deployment Configuration](#deployment-configuration)
+- [Basic Usage](#basic-usage)
 - [Examples](#examples)
 - [API Reference](#api-reference)
   - [Core Functions](#core-functions)
@@ -42,15 +43,31 @@ A lightweight database migration library for Internet Computer (ICP) canisters w
 
 **IMPORTANT**: You must enable exactly one database feature (`sqlite` or `turso`) for this library to work. There is no default feature.
 
-#### For SQLite Support
-SQLite support requires the WASI SDK toolchain. Follow the setup instructions at [ic-rusqlite](https://crates.io/crates/ic-rusqlite) or run:
+In addition to having the Rust toolchain setup and dfx, you need to install the `wasi2ic` tool that replaces WebAssembly System Interface (WASI) specific function calls with their corresponding polyfill implementations. This allows you to run Wasm binaries compiled for wasm32-wasi on the Internet Computer.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/wasm-forge/ic-rusqlite/main/prepare.sh | sh
+cargo install wasi2ic
 ```
 
-#### For Turso Support
-No additional toolchain setup required beyond Rust and DFX.
+### Configure dfx.json
+You also need to configure your `dfx.json` to compile for the `wasm32-wasip1` target and use `wasi2ic` to process the binary:
+
+```json
+{
+  "canisters": {
+    "your_canister": {
+      "candid": "your_canister.did",
+      "package": "your_canister",
+      "type": "custom",
+      "build": [
+        "cargo build --target wasm32-wasip1 --release",
+        "wasi2ic target/wasm32-wasip1/release/your_canister.wasm target/wasm32-wasip1/release/your_canister-wasi2ic.wasm"
+      ],
+      "wasm": "target/wasm32-wasip1/release/your_canister-wasi2ic.wasm"
+    }
+  }
+}
+```
 
 ### Installation
 
@@ -60,12 +77,12 @@ Add to both `[dependencies]` and `[build-dependencies]` in your `Cargo.toml`:
 # For SQLite support
 # Note: You MUST specify either "sqlite" or "turso" feature - there is no default
 [dependencies]
-ic-sql-migrate = { version = "0.0.3", features = ["sqlite"] }
-ic-rusqlite = "0.3.1"
-ic-cdk = "0.16"
+ic-sql-migrate = { version = "0.0.4", features = ["sqlite"] }
+ic-rusqlite = { version = "0.4.2", features = ["precompiled"], default-features = false }
+ic-cdk = "0.18.7"
 
 [build-dependencies]
-ic-sql-migrate = "0.0.3"
+ic-sql-migrate = "0.0.4"
 ```
 
 Or for Turso:
@@ -74,18 +91,47 @@ Or for Turso:
 # For Turso support
 # Note: You MUST specify either "sqlite" or "turso" feature - there is no default
 [dependencies]
-ic-sql-migrate = { version = "0.0.3", features = ["turso"] }
+ic-sql-migrate = { version = "0.0.4", features = ["turso"] }
 turso = "0.1.4"
-ic-cdk = "0.16"
+ic-cdk = "0.18.7"
 
 [build-dependencies]
-ic-sql-migrate = "0.0.3"
+ic-sql-migrate = "0.0.4"
 ```
 
 **Important:**
 - You **MUST** choose exactly one database feature (`sqlite` or `turso`)
 - The features are mutually exclusive (cannot use both)
 - There is no default feature - the library will not work without selecting one
+
+## Deployment Configuration
+
+### dfx.json Setup (Required for SQLite)
+For SQLite support, you need to configure your `dfx.json` to compile for the `wasm32-wasip1` target and use `wasi2ic` to process the binary:
+
+```json
+{
+  "canisters": {
+    "your_canister": {
+      "candid": "your_canister.did",
+      "package": "your_canister",
+      "type": "custom",
+      "build": [
+        "cargo build --target wasm32-wasip1 --release",
+        "wasi2ic target/wasm32-wasip1/release/your_canister.wasm target/wasm32-wasip1/release/your_canister-wasi2ic.wasm"
+      ],
+      "wasm": "target/wasm32-wasip1/release/your_canister-wasi2ic.wasm"
+    }
+  }
+}
+```
+
+This configuration:
+1. Compiles your canister for the `wasm32-wasip1` target (required for SQLite)
+2. Uses `wasi2ic` to convert WASI function calls to IC-compatible polyfills
+3. Points dfx to the processed WASM file for deployment
+
+**Note**: Turso canisters use the standard `wasm32-unknown-unknown` target and don't require `wasi2ic` processing.
 
 ### Basic Usage
 
@@ -261,7 +307,8 @@ Includes all migrations discovered by `list()` at compile time.
 ## How It Works
 
 1. **Build Time**: `list()` in `build.rs` scans your migrations directory and generates code to embed SQL files
-2. **Runtime**: `up()` function:
+2. **WASI to IC Conversion**: The `wasi2ic` tool converts WASI-specific function calls to IC-compatible polyfills, allowing the WASM binary to run on the Internet Computer
+3. **Runtime**: `up()` function:
    - Creates a `_migrations` table to track applied migrations
    - Compares embedded migrations with applied ones
    - Executes pending migrations in order within a transaction
@@ -290,7 +337,9 @@ ic-sql-migrate/
 | Feature | SQLite | Turso |
 |---------|--------|-------|
 | **Async Operations** | No | Yes |
-| **Additional Setup** | WASI SDK required | None |
+| **Additional Setup** | `wasi2ic` tool + dfx.json config | None |
+| **WASM Target** | `wasm32-wasip1` | `wasm32-unknown-unknown` |
+| **Build Processing** | Requires `wasi2ic` | Standard Rust build |
 | **Connection Type** | `ic_rusqlite::Connection` | `turso::Connection` |
 | **Migration Function** | `sqlite::up()` | `turso::up()` (async) |
 
