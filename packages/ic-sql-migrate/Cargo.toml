@@ -1,6 +1,6 @@
 [package]
 name = "ic-sql-migrate"
-version = "0.0.3"
+version = "0.0.4"
 edition = "2021"
 description = "A lightweight database migration library for Internet Computer (ICP) canisters with SQLite and Turso support."
 authors = ["Kristofer Lund"]

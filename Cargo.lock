@@ -813,7 +813,7 @@ dependencies = [
 
 [[package]]
 name = "ic-sql-migrate"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "futures-util",
  "rusqlite",
@@ -1933,7 +1933,7 @@ dependencies = [
 
 [[package]]
 name = "turso-example"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "canbench-rs",
  "candid",
