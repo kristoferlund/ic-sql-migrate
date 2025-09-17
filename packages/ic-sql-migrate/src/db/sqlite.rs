@@ -4,10 +4,6 @@
 //! using the `ic-rusqlite` crate. It manages database schema versioning through a `_migrations` table
 //! that tracks which migrations have been applied.
 //!
-//! # Prerequisites
-//! SQLite support requires the WASI SDK toolchain. See [ic-rusqlite](https://crates.io/crates/ic-rusqlite)
-//! for setup instructions.
-//!
 //! # Features
 //! - Automatic migration tracking via `_migrations` table
 //! - Transactional migration execution (all-or-nothing)
