@@ -22,7 +22,7 @@ futures-util = { version = "0.3", optional = true }
 
 [features]
 default = []
-sqlite = ["rusqlite", "tokio"]
+sqlite = ["rusqlite"]
 turso = ["dep:turso", "tokio", "futures-util"]
 
 [dev-dependencies]
