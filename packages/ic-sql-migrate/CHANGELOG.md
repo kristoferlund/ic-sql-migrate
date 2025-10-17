@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.5] - 2025-10-17
+
+### Added
+- Data seeding system using Rust functions with automatic discovery and tracking
+- `Builder` for compile-time configuration of migrations and seeds directories
+
+### Changed
+- Renamed `include!()` macro to `include_migrations!()` for clarity
+- Renamed `sqlite::up()` to `sqlite::migrate()` for consistency
+- Renamed `turso::up()` to `turso::migrate()` for consistency
+- Replaced `list()` build script function with `Builder::new().build()`
+
 ## [0.0.4] - 2025-09-17
 
 ### Changed
