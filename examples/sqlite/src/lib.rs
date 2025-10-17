@@ -1,18 +1,22 @@
 use ic_cdk::{api::performance_counter, init, post_upgrade, pre_upgrade, query, update};
 use ic_rusqlite::{close_connection, with_connection, Connection};
+use ic_sql_migrate::{include_migrations, Migration};
 
-static MIGRATIONS: &[ic_sql_migrate::Migration] = ic_sql_migrate::include!();
+mod seeds;
 
-fn run_migrations() {
+static MIGRATIONS: &[Migration] = include_migrations!();
+
+fn run_migrations_and_seeds() {
     with_connection(|mut conn| {
         let conn: &mut Connection = &mut conn;
-        ic_sql_migrate::sqlite::up(conn, MIGRATIONS).unwrap();
+        ic_sql_migrate::sqlite::migrate(conn, MIGRATIONS).unwrap();
+        ic_sql_migrate::sqlite::seed(conn, seeds::SEEDS).unwrap();
     });
 }
 
 #[init]
 fn init() {
-    run_migrations();
+    run_migrations_and_seeds();
 }
 
 #[pre_upgrade]
@@ -22,12 +26,12 @@ fn pre_upgrade() {
 
 #[post_upgrade]
 fn post_upgrade() {
-    run_migrations();
+    run_migrations_and_seeds();
 }
 
 #[query]
-fn run() -> String {
-    ic_cdk::println!("Starting migration verification...");
+fn verify_migrations() -> String {
+    ic_cdk::println!("Verifying migrations...");
 
     let migration_count = with_connection(|mut conn| {
         let conn: &mut Connection = &mut conn;
@@ -37,9 +41,14 @@ fn run() -> String {
         count
     });
 
-    ic_cdk::println!("Migrations executed: {}", migration_count);
-
     let total_migrations = MIGRATIONS.len() as i64;
+
+    let mut output = String::from("=== Migration Verification ===\n\n");
+    output.push_str(&format!(
+        "Migrations executed: {} / {}\n",
+        migration_count, total_migrations
+    ));
+
     if migration_count == total_migrations {
         ic_cdk::println!("All {} migrations have run successfully.", total_migrations);
 
@@ -61,25 +70,86 @@ fn run() -> String {
             (customers, tracks, albums, invoices)
         });
 
-        ic_cdk::println!(
-            "Chinook database loaded: {} customers, {} tracks, {} albums, {} invoices",
-            customers,
-            tracks,
-            albums,
-            invoices
-        );
-        format!(
-            "Success: All {} migrations executed. Chinook database loaded with {} customers, {} tracks, {} albums, {} invoices.",
-            total_migrations, customers, tracks, albums, invoices
-        )
+        output.push_str(&format!("Status: ✓ All migrations applied\n\n"));
+        output.push_str("Chinook Database Contents:\n");
+        output.push_str(&format!("  - Customers: {}\n", customers));
+        output.push_str(&format!("  - Tracks: {}\n", tracks));
+        output.push_str(&format!("  - Albums: {}\n", albums));
+        output.push_str(&format!("  - Invoices: {}\n", invoices));
     } else {
-        ic_cdk::println!(
-            "Migration verification failed: {} out of {} migrations executed.",
-            migration_count,
-            total_migrations
-        );
-        format!("Error: Only {migration_count} out of {total_migrations} migrations executed.")
+        output.push_str(&format!("Status: ✗ Migration verification failed\n"));
+        output.push_str(&format!(
+            "Only {} out of {} migrations executed.\n",
+            migration_count, total_migrations
+        ));
     }
+
+    output
+}
+
+#[query]
+fn verify_seeds() -> String {
+    ic_cdk::println!("Verifying seeds...");
+
+    let seed_count: i64 = with_connection(|mut conn| {
+        let conn: &mut Connection = &mut conn;
+        conn.query_row("SELECT COUNT(*) FROM _seeds", [], |row| row.get(0))
+            .unwrap_or(0)
+    });
+
+    let total_seeds = seeds::SEEDS.len() as i64;
+
+    let mut output = String::from("=== Seed Verification ===\n\n");
+    output.push_str(&format!(
+        "Seeds executed: {} / {}\n",
+        seed_count, total_seeds
+    ));
+
+    if seed_count == total_seeds {
+        ic_cdk::println!("All {} seeds have run successfully.", total_seeds);
+
+        // Verify seed data exists
+        let seed_albums = with_connection(|mut conn| {
+            let conn: &mut Connection = &mut conn;
+
+            let mut stmt = conn
+                .prepare("SELECT AlbumId, Title FROM Album WHERE AlbumId IN (9999, 9998) ORDER BY AlbumId DESC")
+                .unwrap();
+
+            let mut results = Vec::new();
+            let rows = stmt
+                .query_map([], |row| {
+                    Ok((row.get::<_, i32>(0)?, row.get::<_, String>(1)?))
+                })
+                .unwrap();
+
+            for row in rows {
+                if let Ok((id, title)) = row {
+                    results.push((id, title));
+                }
+            }
+            results
+        });
+
+        output.push_str(&format!("Status: ✓ All seeds applied\n\n"));
+
+        if seed_albums.is_empty() {
+            output.push_str("Warning: Seed data not found in database\n");
+        } else {
+            output.push_str("Seed Data Verified:\n");
+            for (id, title) in seed_albums {
+                output.push_str(&format!("  - Album {}: {}\n", id, title));
+            }
+        }
+    } else {
+        output.push_str(&format!("Status: ✗ Seed verification failed\n"));
+        output.push_str(&format!(
+            "Only {} out of {} seeds executed.\n",
+            seed_count, total_seeds
+        ));
+    }
+
+    output
 }
 
 #[query]
@@ -690,7 +760,16 @@ fn test5() -> String {
                     // Create genre playlist with unique naming
                     tx.execute(
                         "INSERT INTO Playlist (PlaylistId, Name) VALUES (?1, ?2)",
-                        ic_rusqlite::params![playlist_id, format!("Ultimate {} Collection v{}.{}-{}", genre_name, variation + 1, sub_variation + 1, playlist_id)],
+                        ic_rusqlite::params![
+                            playlist_id,
+                            format!(
+                                "Ultimate {} Collection v{}.{}-{}",
+                                genre_name,
+                                variation + 1,
+                                sub_variation + 1,
+                                playlist_id
+                            )
+                        ],
                     )
                     .unwrap();
 
@@ -709,7 +788,12 @@ fn test5() -> String {
                          AND t.TrackId % 13 = ?3  -- Use modulo for varied track selection
                          AND t.Milliseconds > ?4
                          LIMIT 8000",
-                            ic_rusqlite::params![playlist_id, genre_id, variation, sub_variation * 50000],
+                            ic_rusqlite::params![
+                                playlist_id,
+                                genre_id,
+                                variation,
+                                sub_variation * 50000
+                            ],
                         )
                         .unwrap();
 
@@ -727,7 +811,16 @@ fn test5() -> String {
 
                     tx.execute(
                         "INSERT INTO Playlist (PlaylistId, Name) VALUES (?1, ?2)",
-                        ic_rusqlite::params![playlist_id, format!("Best of {} Q{} M{} Retrospective - {}", year, quarter + 1, month_variation + 1, playlist_id)],
+                        ic_rusqlite::params![
+                            playlist_id,
+                            format!(
+                                "Best of {} Q{} M{} Retrospective - {}",
+                                year,
+                                quarter + 1,
+                                month_variation + 1,
+                                playlist_id
+                            )
+                        ],
                     )
                     .unwrap();
 
@@ -778,7 +871,16 @@ fn test5() -> String {
                     // Create collaborative playlist
                     tx.execute(
                         "INSERT INTO Playlist (PlaylistId, Name) VALUES (?1, ?2)",
-                        ic_rusqlite::params![playlist_id, format!("Collaborative Mix #{}-{}.{}-{}", idx + 1, collab_type + 1, collab_subtype + 1, playlist_id)],
+                        ic_rusqlite::params![
+                            playlist_id,
+                            format!(
+                                "Collaborative Mix #{}-{}.{}-{}",
+                                idx + 1,
+                                collab_type + 1,
+                                collab_subtype + 1,
+                                playlist_id
+                            )
+                        ],
                     )
                     .unwrap();
 
@@ -1035,8 +1137,6 @@ fn test5() -> String {
             [],
         )
         .unwrap();
-
-
 
         // 5. Create playlist recommendations table with multiple relationship types
         tx.execute(
@@ -1301,7 +1401,12 @@ fn test5() -> String {
             analytics_inserted,
             relationships_created,
             metadata_updated,
-            detailed_analytics + detailed_analytics_2 + detailed_analytics_3 + detailed_analytics_4 + detailed_analytics_5 + detailed_analytics_6,  // Sum all detailed analytics
+            detailed_analytics
+                + detailed_analytics_2
+                + detailed_analytics_3
+                + detailed_analytics_4
+                + detailed_analytics_5
+                + detailed_analytics_6, // Sum all detailed analytics
             stats_updated,
             versions_created,
             interactions_created,

@@ -12,7 +12,7 @@
 //!
 //! Additional capabilities:
 //! - **Automatic migration execution** on canister `init` and `post_upgrade`
-//! - **Compile-time migration embedding** via `include!()` macro
+//! - **Compile-time migration embedding** via `include_migrations!()` macro
 //! - **Transaction-based execution** for atomicity
 //!
 //! The library has no default features. Attempting to use it without enabling
@@ -65,9 +65,7 @@
 //!
 //! ## 3. Create build.rs
 //! ```no_run
-//! fn main() {
-//!     ic_sql_migrate::list(Some("migrations")).unwrap();
-//! }
+//! ic_sql_migrate::Builder::new().build().unwrap();
 //! ```
 //!
 //! ## 4. Use in canister
@@ -75,12 +73,12 @@
 //! use ic_cdk::{init, post_upgrade, pre_upgrade};
 //! use ic_rusqlite::{close_connection, with_connection, Connection};
 //!
-//! static MIGRATIONS: &[ic_sql_migrate::Migration] = ic_sql_migrate::include!();
+//! static MIGRATIONS: &[ic_sql_migrate::Migration] = ic_sql_migrate::include_migrations!();
 //!
 //! fn run_migrations() {
 //!     with_connection(|mut conn| {
 //!         let conn: &mut Connection = &mut conn;
-//!         ic_sql_migrate::sqlite::up(conn, MIGRATIONS).unwrap();
+//!         ic_sql_migrate::sqlite::migrate(conn, MIGRATIONS).unwrap();
 //!     });
 //! }
 //!
@@ -162,9 +160,70 @@ impl From<turso_crate::Error> for Error {
 /// This provides a convenient shorthand for functions that can return migration errors.
 pub type MigrateResult<T> = std::result::Result<T, Error>;
 
+/// Type alias for seed functions that take a SQLite connection.
+///
+/// Seed functions are called after migrations to populate initial data.
+#[cfg(feature = "sqlite")]
+pub type SqliteSeedFn = fn(&rusqlite::Connection) -> MigrateResult<()>;
+
+/// Type alias for async seed functions that take a Turso connection.
+///
+/// Seed functions are called after migrations to populate initial data.
+#[cfg(feature = "turso")]
+pub type TursoSeedFn =
+    fn(
+        &turso_crate::Connection,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = MigrateResult<()>> + Send>>;
+
+/// Represents a single database seed with its unique identifier and execution function.
+///
+/// Seeds are typically created at compile time and executed after migrations
+/// to populate initial or test data using Rust code rather than SQL.
+///
+/// # Example
+/// ```
+/// use ic_sql_migrate::Seed;
+///
+/// fn seed_users(conn: &rusqlite::Connection) -> ic_sql_migrate::MigrateResult<()> {
+///     conn.execute("INSERT INTO users (name, email) VALUES ('Alice', 'alice@example.com')", [])?;
+///     Ok(())
+/// }
+///
+/// static SEEDS: &[Seed] = &[
+///     Seed::new("001_initial_users", seed_users),
+/// ];
+/// ```
+#[cfg(feature = "sqlite")]
+#[derive(Clone, Copy)]
+pub struct Seed {
+    pub id: &'static str,
+    pub seed_fn: SqliteSeedFn,
+}
+
+#[cfg(feature = "sqlite")]
+impl Seed {
+    pub const fn new(id: &'static str, seed_fn: SqliteSeedFn) -> Self {
+        Self { id, seed_fn }
+    }
+}
+
+#[cfg(feature = "turso")]
+#[derive(Clone, Copy)]
+pub struct Seed {
+    pub id: &'static str,
+    pub seed_fn: TursoSeedFn,
+}
+
+#[cfg(feature = "turso")]
+impl Seed {
+    pub const fn new(id: &'static str, seed_fn: TursoSeedFn) -> Self {
+        Self { id, seed_fn }
+    }
+}
+
 /// Represents a single database migration with its unique identifier and SQL content.
 ///
-/// Migrations are typically created at compile time by the `include!()` macro
+/// Migrations are typically created at compile time by the `include_migrations!()` macro
 /// from SQL files in your migrations directory. Each migration consists of:
 /// - An identifier (usually the filename without extension)
 /// - The SQL statements to execute
@@ -173,7 +232,7 @@ pub type MigrateResult<T> = std::result::Result<T, Error>;
 /// ```
 /// use ic_sql_migrate::Migration;
 ///
-/// // Typically included via the include!() macro:
+/// // Typically included via the include_migrations!() macro:
 /// static MIGRATIONS: &[Migration] = &[
 ///     Migration::new(
 ///         "001_create_users",
@@ -219,7 +278,7 @@ impl Migration {
     }
 }
 
-/// Includes all migration files discovered by the `list` function at compile time.
+/// Includes all migration files discovered by the Builder at compile time.
 ///
 /// This macro expands to a static slice of `Migration` structs containing
 /// all SQL files found in the migrations directory. The migrations are ordered
@@ -227,7 +286,7 @@ impl Migration {
 /// (e.g., `001_initial.sql`, `002_add_users.sql`).
 ///
 /// # Prerequisites
-/// You must call `ic_sql_migrate::list()` in your `build.rs` file to generate
+/// You must call `ic_sql_migrate::Builder::new().build()` in your `build.rs` file to generate
 /// the migration data that this macro includes.
 ///
 /// # Example in ICP Canister
@@ -236,12 +295,12 @@ impl Migration {
 /// use ic_cdk::{init, post_upgrade};
 /// use ic_rusqlite::{with_connection, Connection};
 ///
-/// static MIGRATIONS: &[ic_sql_migrate::Migration] = ic_sql_migrate::include!();
+/// static MIGRATIONS: &[ic_sql_migrate::Migration] = ic_sql_migrate::include_migrations!();
 ///
 /// fn run_migrations() {
 ///     with_connection(|mut conn| {
 ///         let conn: &mut Connection = &mut conn;
-///         ic_sql_migrate::sqlite::up(conn, MIGRATIONS).unwrap();
+///         ic_sql_migrate::sqlite::migrate(conn, MIGRATIONS).unwrap();
 ///     });
 /// }
 ///
@@ -256,84 +315,121 @@ impl Migration {
 /// }
 /// ```
 #[macro_export]
-macro_rules! include {
+macro_rules! include_migrations {
     () => {
         include!(concat!(env!("OUT_DIR"), "/migrations_gen.rs"))
     };
 }
 
-/// Discovers and lists all SQL migration files for inclusion at compile time.
+/// Builder for configuring migration and seed discovery at compile time.
 ///
-/// This function should be called in `build.rs` to generate code that embeds
-/// all migration files into the binary. It scans the specified directory for
-/// `.sql` files and generates Rust code to include them.
-///
-/// The function will:
-/// 1. Look for SQL files in the specified directory (relative to `Cargo.toml`)
-/// 2. Sort them alphabetically by filename
-/// 3. Generate code that includes their content at compile time
-/// 4. Set up cargo to rebuild when migration files change
-///
-/// # Arguments
-/// * `migrations_dir_name` - Optional custom directory name (defaults to "migrations")
+/// This builder allows you to customize the directories where migrations and seeds
+/// are located. By default, it looks for migrations in `migrations/` and seeds in `src/seeds/`.
 ///
 /// # Example in build.rs
 /// ```no_run
-/// // In your canister's build.rs file
-/// fn main() {
-///     // Use default "migrations" directory
-///     ic_sql_migrate::list(None).unwrap();
+/// // Use defaults (migrations/ and src/seeds/)
+/// // If either directory doesn't exist, it will be skipped automatically
+/// ic_sql_migrate::Builder::new().build().unwrap();
 ///
-///     // Or specify a custom directory relative to Cargo.toml
-///     ic_sql_migrate::list(Some("migrations")).unwrap();
-/// }
+/// // Custom directories
+/// ic_sql_migrate::Builder::new()
+///     .with_migrations_dir("db/migrations")
+///     .with_seeds_dir("src/db/seeds")
+///     .build()
+///     .unwrap();
 /// ```
-///
-/// # File Naming Convention
-/// Migration files should be named with a sortable prefix to ensure correct execution order:
-/// - `001_initial_schema.sql`
-/// - `002_add_users_table.sql`
-/// - `003_add_indexes.sql`
-///
-/// # Errors
-/// Returns an I/O error if:
-/// - The output directory (`OUT_DIR`) cannot be written to
-/// - File system operations fail
-/// - Environment variables `CARGO_MANIFEST_DIR` or `OUT_DIR` are not set
-pub fn list(migrations_dir_name: Option<&str>) -> std::io::Result<()> {
-    use std::env;
-    use std::fs;
-    use std::path::Path;
+pub struct Builder {
+    migrations_dir: String,
+    seeds_dir: String,
+}
 
-    let manifest_dir = env::var("CARGO_MANIFEST_DIR").map_err(|_| {
-        std::io::Error::new(std::io::ErrorKind::NotFound, "CARGO_MANIFEST_DIR not set")
-    })?;
-
-    let dir_name = migrations_dir_name.unwrap_or("migrations");
-    let migrations_dir = Path::new(&manifest_dir).join(dir_name);
-
-    // Ensure cargo rebuilds when migrations change
-    println!("cargo:rerun-if-changed={}", migrations_dir.display());
-
-    // Generate the output file path
-    let out_dir = env::var("OUT_DIR")
-        .map_err(|_| std::io::Error::new(std::io::ErrorKind::NotFound, "OUT_DIR not set"))?;
-    let dest_path = Path::new(&out_dir).join("migrations_gen.rs");
-
-    // If migrations directory doesn't exist, create empty migrations array
-    if !migrations_dir.exists() {
-        fs::write(dest_path, "&[]")?;
-        return Ok(());
+impl Builder {
+    /// Creates a new builder with default settings.
+    ///
+    /// Defaults:
+    /// - Migrations directory: `migrations/`
+    /// - Seeds directory: `src/seeds/`
+    pub fn new() -> Self {
+        Self {
+            migrations_dir: "migrations".to_string(),
+            seeds_dir: "src/seeds".to_string(),
+        }
     }
 
-    // Collect all SQL files
-    let migration_files = collect_migration_files(&migrations_dir)?;
+    /// Sets the directory where migration SQL files are located.
+    ///
+    /// # Arguments
+    /// * `dir` - Path relative to `Cargo.toml`
+    pub fn with_migrations_dir(mut self, dir: impl Into<String>) -> Self {
+        self.migrations_dir = dir.into();
+        self
+    }
 
-    // Generate and write the Rust code
-    let generated_code = generate_migrations_code(&migration_files);
-    fs::write(dest_path, generated_code)?;
+    /// Sets the directory where seed Rust files are located.
+    ///
+    /// # Arguments
+    /// * `dir` - Path relative to `Cargo.toml`
+    pub fn with_seeds_dir(mut self, dir: impl Into<String>) -> Self {
+        self.seeds_dir = dir.into();
+        self
+    }
 
-    Ok(())
+    /// Executes the builder, discovering and generating code for migrations and seeds.
+    ///
+    /// This method automatically handles missing directories by generating empty arrays.
+    /// You don't need to specify whether directories exist or not.
+    ///
+    /// # Errors
+    /// Returns an I/O error if file system operations fail or required environment
+    /// variables are not set.
+    pub fn build(self) -> std::io::Result<()> {
+        use std::env;
+        use std::fs;
+        use std::path::Path;
+
+        let manifest_dir = env::var("CARGO_MANIFEST_DIR").map_err(|_| {
+            std::io::Error::new(std::io::ErrorKind::NotFound, "CARGO_MANIFEST_DIR not set")
+        })?;
+
+        let out_dir = env::var("OUT_DIR")
+            .map_err(|_| std::io::Error::new(std::io::ErrorKind::NotFound, "OUT_DIR not set"))?;
+
+        // Process migrations
+        let migrations_dir = Path::new(&manifest_dir).join(&self.migrations_dir);
+        println!("cargo:rerun-if-changed={}", migrations_dir.display());
+
+        let migrations_dest = Path::new(&out_dir).join("migrations_gen.rs");
+
+        if !migrations_dir.exists() {
+            fs::write(migrations_dest, "&[]")?;
+        } else {
+            let migration_files = collect_migration_files(&migrations_dir)?;
+            let generated_code = generate_migrations_code(&migration_files);
+            fs::write(migrations_dest, generated_code)?;
+        }
+
+        // Process seeds - generate mod.rs in the seeds directory
+        let seeds_dir = Path::new(&manifest_dir).join(&self.seeds_dir);
+        println!("cargo:rerun-if-changed={}", seeds_dir.display());
+
+        if seeds_dir.exists() {
+            let seed_files = collect_seed_files(&seeds_dir)?;
+            if !seed_files.is_empty() {
+                let generated_code = generate_seeds_code(&seed_files);
+                let mod_file = seeds_dir.join("mod.rs");
+                fs::write(mod_file, generated_code)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl Default for Builder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 /// Collects all SQL migration files from the specified directory.
@@ -384,5 +480,74 @@ fn generate_migrations_code(migration_files: &[(String, String)]) -> String {
     }
 
     code.push_str("]\n");
+    code
+}
+
+/// Collects all Rust seed files from the specified directory.
+///
+/// Returns a sorted list of (seed_id, module_path) tuples.
+/// Excludes mod.rs as it's the module declaration file.
+fn collect_seed_files(seeds_dir: &std::path::Path) -> std::io::Result<Vec<(String, String)>> {
+    use std::fs;
+
+    let mut seed_files = Vec::new();
+
+    let entries = fs::read_dir(seeds_dir)?;
+    for entry in entries {
+        let entry = entry?;
+        let path = entry.path();
+
+        if path.extension().and_then(|s| s.to_str()) != Some("rs") {
+            continue;
+        }
+
+        if let Some(file_stem) = path.file_stem().and_then(|s| s.to_str()) {
+            // Skip mod.rs as it's the generated module file
+            if file_stem == "mod" {
+                continue;
+            }
+
+            let absolute_path = path.to_string_lossy().to_string();
+            seed_files.push((file_stem.to_string(), absolute_path));
+
+            println!("cargo:rerun-if-changed={}", path.display());
+        }
+    }
+
+    seed_files.sort_by(|a, b| a.0.cmp(&b.0));
+
+    Ok(seed_files)
+}
+
+/// Generates a mod.rs file for the seeds module.
+///
+/// Creates a module file that:
+/// 1. Declares all seed submodules in alphabetical order
+/// 2. Exports a SEEDS constant with all seed functions in order
+///
+/// This function is feature-agnostic and generates generic code.
+/// The actual type checking happens at compile time when the user's
+/// crate is built with the appropriate feature.
+fn generate_seeds_code(seed_files: &[(String, String)]) -> String {
+    let mut code = String::new();
+
+    code.push_str("// This file is auto-generated by ic-sql-migrate\n");
+    code.push_str("// Do not edit manually\n\n");
+
+    // Declare all submodules
+    for (seed_id, _) in seed_files {
+        code.push_str(&format!("pub mod {seed_id};\n"));
+    }
+
+    code.push('\n');
+    code.push_str("use ic_sql_migrate::Seed;\n\n");
+
+    // Create the SEEDS array
+    code.push_str("pub static SEEDS: &[Seed] = &[\n");
+    for (seed_id, _) in seed_files {
+        code.push_str(&format!("    Seed::new(\"{seed_id}\", {seed_id}::seed),\n"));
+    }
+    code.push_str("];\n");
+
     code
 }

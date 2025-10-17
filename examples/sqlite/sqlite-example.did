@@ -1,5 +1,6 @@
 service : () -> {
-  run : () -> (text) query;
+  verify_migrations : () -> (text) query;
+  verify_seeds : () -> (text) query;
   test1 : () -> (text) query;
   test2 : () -> (text) query;
   test3 : () -> (text) query;

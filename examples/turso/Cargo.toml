@@ -10,9 +10,10 @@ crate-type = ["cdylib"]
 candid = "0.10"
 ic-cdk = "0.18"
 turso = "0.1.4"
-ic-stable-structures = "0.7.0"
-ic-wasi-polyfill = "0.9.0"
 tokio = { version = "1.47" }
+
+ic-stable-structures = "0.7"
+ic-wasi-polyfill = "0.11"
 ic-sql-migrate = { path = "../../packages/ic-sql-migrate", features = [
   "turso",
 ] }
@@ -20,6 +21,4 @@ canbench-rs = "0.2.1"
 
 
 [build-dependencies]
-ic-sql-migrate = { path = "../../packages/ic-sql-migrate", features = [
-  "turso",
-] }
+ic-sql-migrate = { path = "../../packages/ic-sql-migrate" }

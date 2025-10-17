@@ -72,8 +72,12 @@ sqlite/
 ├── migrations/
 │   └── 000_init.sql    # Complete Chinook database schema and data
 ├── src/
+│   ├── seeds/          # Data seeding modules
+│   │   ├── mod.rs      # Auto-generated module file
+│   │   ├── seed_001_test.rs        # First seed file
+│   │   └── seed_002_more_data.rs   # Second seed file
 │   └── lib.rs          # Canister implementation with test endpoints
-├── build.rs            # Embeds migrations at compile time
+├── build.rs            # Embeds migrations and generates seed module
 ├── Cargo.toml          # Dependencies and build configuration
 └── sqlite.did          # Candid interface definition
 ```
@@ -179,17 +183,43 @@ dfx start --clean --background
 dfx deploy sqlite-example
 ```
 
-### 3. Verify the database loaded correctly:
+### 3. Verify migrations loaded correctly:
 ```bash
-dfx canister call sqlite-example run
+dfx canister call sqlite-example verify_migrations
 ```
 
 Expected output:
 ```
-Success: All 1 migrations executed. Chinook database loaded with 59 customers, 3503 tracks, 347 albums, 412 invoices.
+=== Migration Verification ===
+
+Migrations executed: 1 / 1
+Status: ✓ All migrations applied
+
+Chinook Database Contents:
+  - Customers: 59
+  - Tracks: 3503
+  - Albums: 347
+  - Invoices: 412
 ```
 
-### 4. Run the test endpoints:
+### 4. Verify seeds loaded correctly:
+```bash
+dfx canister call sqlite-example verify_seeds
+```
+
+Expected output:
+```
+=== Seed Verification ===
+
+Seeds executed: 2 / 2
+Status: ✓ All seeds applied
+
+Seed Data Verified:
+  - Album 9999: Test Album from Seeds
+  - Album 9998: Another Test Album
+```
+
+### 5. Run the test endpoints:
 
 ```bash
 # Read operations - analyze existing data
@@ -225,6 +255,28 @@ The single migration file (`000_init.sql`) contains the entire Chinook database 
 - 11 CREATE TABLE statements with proper foreign keys
 - Thousands of INSERT statements for initial data
 - Indexes for optimal query performance
+
+### Seed System
+The example demonstrates the seed system with two seed files in `src/seeds/`:
+
+**`seed_001_test.rs`:**
+```rust
+use ic_sql_migrate::MigrateResult;
+use ic_rusqlite::Connection;
+
+pub fn seed(conn: &Connection) -> MigrateResult<()> {
+    conn.execute(
+        "INSERT INTO Album (AlbumId, Title, ArtistId) VALUES (9999, 'Test Album from Seeds', 1)",
+        [],
+    )?;
+    ic_cdk::println!("Seed 001: Inserted test album");
+    Ok(())
+}
+```
+
+Seeds are:
+- Tracked in the `_seeds` table to prevent re-execution
+- Run in alphabetical order by filename
 
 ### Connection Management
 Uses `ic_rusqlite::with_connection()` for safe database access:

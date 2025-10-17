@@ -57,11 +57,11 @@ turso/
 ## How It Works
 
 ### 1. Build Time
-The `build.rs` script uses `ic_sql_migrate::list()` to discover and embed all SQL files from the `migrations/` directory into the canister binary:
+The `build.rs` script uses `ic_sql_migrate::Builder` to discover and embed all SQL files from the `migrations/` directory into the canister binary:
 
 ```rust
 fn main() {
-    ic_sql_migrate::list(Some("migrations")).unwrap();
+    ic_sql_migrate::Builder::new().build().unwrap();
 }
 ```
 
@@ -165,7 +165,7 @@ All Turso operations are async:
 ```rust
 async fn run_migrations() {
     let mut conn = get_connection().await;
-    ic_sql_migrate::turso::up(&mut conn, MIGRATIONS)
+    ic_sql_migrate::turso::migrate(&mut conn, MIGRATIONS)
         .await
         .unwrap();
 }
