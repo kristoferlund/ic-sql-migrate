@@ -54,13 +54,13 @@
 //! ## 2. Add to Cargo.toml
 //! ```toml
 //! [dependencies]
-//! ic-sql-migrate = { version = "0.0.4", features = ["sqlite"] } # or feature "turso"
+//! ic-sql-migrate = { version = "0.0.5", features = ["sqlite"] } # or feature "turso"
 //! ic-rusqlite = { version = "0.4.2", features = ["precompiled"], default-features = false }
 //! # or turso = "0.1.4" for Turso
 //! ic-cdk = "0.18.7"
 //!
 //! [build-dependencies]
-//! ic-sql-migrate = "0.0.4"
+//! ic-sql-migrate = "0.0.5"
 //! ```
 //!
 //! ## 3. Create build.rs

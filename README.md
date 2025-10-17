@@ -36,12 +36,12 @@ This library provides automatic database schema management and version control f
 ### 1. Add to Cargo.toml
 ```toml
 [dependencies]
-ic-sql-migrate = { version = "0.0.4", features = ["sqlite"] }
+ic-sql-migrate = { version = "0.0.5", features = ["sqlite"] }
 ic-rusqlite = { version = "0.4.2", features = ["precompiled"], default-features = false }
 ic-cdk = "0.18.7"
 
 [build-dependencies]
-ic-sql-migrate = "0.0.4"
+ic-sql-migrate = "0.0.5"
 ```
 
 ### 2. Create build.rs
