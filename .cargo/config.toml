@@ -1,0 +1,5 @@
+[build]
+features = ["sqlite"]
+
+[unstable]
+build-std = false
