@@ -43,7 +43,7 @@ For SQLite support (most common for ICP):
 ```toml
 [dependencies]
 ic-sql-migrate = { version = "0.0.5", features = ["sqlite"] }
-ic-rusqlite = { version = "0.4.2", features = ["precompiled"], default-features = false }
+ic-rusqlite = { version = "0.4.3", features = ["precompiled"] }
 ic-cdk = "0.18.7"
 
 [build-dependencies]

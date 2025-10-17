@@ -55,7 +55,7 @@
 //! ```toml
 //! [dependencies]
 //! ic-sql-migrate = { version = "0.0.5", features = ["sqlite"] } # or feature "turso"
-//! ic-rusqlite = { version = "0.4.2", features = ["precompiled"], default-features = false }
+//! ic-rusqlite = { version = "0.4.3", features = ["precompiled"] }
 //! # or turso = "0.1.4" for Turso
 //! ic-cdk = "0.18.7"
 //!
