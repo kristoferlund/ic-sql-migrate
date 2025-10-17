@@ -1,3 +1,3 @@
 fn main() {
-    ic_sql_migrate::list(None).unwrap();
+    ic_sql_migrate::Builder::new().build().unwrap();
 }

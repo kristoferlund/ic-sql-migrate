@@ -1,6 +1,6 @@
 # ic-sql-migrate
 
-A lightweight database migration library for Internet Computer (ICP) canisters with support for SQLite and Turso databases.
+A lightweight database migration library for Internet Computer (ICP) canisters with support for SQLite (via `ic-rusqlite`) and Turso databases.
 
 [![Crates.io](https://img.shields.io/crates/v/ic-sql-migrate.svg)](https://crates.io/crates/ic-sql-migrate)
 [![Documentation](https://docs.rs/ic-sql-migrate/badge.svg)](https://docs.rs/ic-sql-migrate)
@@ -8,72 +8,40 @@ A lightweight database migration library for Internet Computer (ICP) canisters w
 
 ## Table of Contents
 
-- [Features](#features)
-- [Prerequisites](#prerequisites)
-  - [For SQLite Support](#for-sqlite-support)
-  - [For Turso Support](#for-turso-support)
 - [Installation](#installation)
 - [Deployment Configuration](#deployment-configuration)
 - [Usage](#usage)
-  - [1. Create migration files](#1-create-migration-files)
-  - [2. Set up build.rs](#2-set-up-buildrs)
-  - [3. Use in your canister](#3-use-in-your-canister)
+  - [1. Create Migration Files](#1-create-migration-files)
+  - [2. Set Up build.rs](#2-set-up-buildrs)
+  - [3. Use in Your Canister](#3-use-in-your-canister)
+- [Data Seeding](#data-seeding)
 - [API Reference](#api-reference)
-  - [Core Functions](#core-functions)
-  - [Build Script Function](#build-script-function)
-  - [Macros](#macros)
-- [Migration Best Practices](#migration-best-practices)
 - [How It Works](#how-it-works)
+- [Migration Best Practices](#migration-best-practices)
+- [Troubleshooting](#troubleshooting)
 - [Examples](#examples)
 - [Differences Between Database Backends](#differences-between-database-backends)
+- [Contributing](#contributing)
 - [License](#license)
 
-## Features
+## Installation
 
-- 🚀 **Multi-Database Support**: Works with SQLite (via `ic-rusqlite`) and Turso databases
-- 📦 **Compile-Time Embedding**: Migration files are embedded into your binary at compile time
-- 🔄 **Automatic Migration**: Tracks and applies migrations automatically on canister init and upgrade
-- 🔒 **Transactional**: All migrations run in transactions for safety
-- 🏗️ **ICP Native**: Designed specifically for Internet Computer canisters
-
-## Prerequisites
+### Prerequisites
 
 **IMPORTANT**: You must enable exactly one database feature (`sqlite` or `turso`) for this library to work. There is no default feature.
 
-In addition to having the Rust toolchain setup and dfx, you need to install the `wasi2ic` tool that replaces WebAssembly System Interface (WASI) specific function calls with their corresponding polyfill implementations. This allows you to run Wasm binaries compiled for wasm32-wasi on the Internet Computer.
+In addition to having the Rust toolchain setup and dfx, you need to install the `wasi2ic` tool (for SQLite only) that replaces WebAssembly System Interface (WASI) specific function calls with their corresponding polyfill implementations:
 
 ```bash
 cargo install wasi2ic
 ```
 
-### Configure dfx.json
-You also need to configure your `dfx.json` to compile for the `wasm32-wasip1` target and use `wasi2ic` to process the binary:
+### Add to Cargo.toml
 
-```json
-{
-  "canisters": {
-    "your_canister": {
-      "candid": "your_canister.did",
-      "package": "your_canister",
-      "type": "custom",
-      "build": [
-        "cargo build --target wasm32-wasip1 --release",
-        "wasi2ic target/wasm32-wasip1/release/your_canister.wasm target/wasm32-wasip1/release/your_canister-wasi2ic.wasm"
-      ],
-      "wasm": "target/wasm32-wasip1/release/your_canister-wasi2ic.wasm"
-    }
-  }
-}
-```
+For SQLite support (most common for ICP):
 
-## Installation
-
-Add to both `[dependencies]` and `[build-dependencies]` in your `Cargo.toml`:
-
-### For SQLite support (most common for ICP):
 ```toml
 [dependencies]
-# Note: You MUST specify either "sqlite" or "turso" feature - there is no default
 ic-sql-migrate = { version = "0.0.4", features = ["sqlite"] }
 ic-rusqlite = { version = "0.4.2", features = ["precompiled"], default-features = false }
 ic-cdk = "0.18.7"
@@ -82,10 +50,10 @@ ic-cdk = "0.18.7"
 ic-sql-migrate = "0.0.4"
 ```
 
-### For Turso support:
+For Turso support:
+
 ```toml
 [dependencies]
-# Note: You MUST specify either "sqlite" or "turso" feature - there is no default
 ic-sql-migrate = { version = "0.0.4", features = ["turso"] }
 turso = "0.1.4"
 ic-cdk = "0.18.7"
@@ -101,7 +69,8 @@ ic-sql-migrate = "0.0.4"
 
 ## Deployment Configuration
 
-### dfx.json Setup
+### dfx.json Setup (Required for SQLite)
+
 For SQLite support, you need to configure your `dfx.json` to compile for the `wasm32-wasip1` target and use `wasi2ic` to process the binary:
 
 ```json
@@ -126,61 +95,67 @@ This configuration:
 2. Uses `wasi2ic` to convert WASI function calls to IC-compatible polyfills
 3. Points dfx to the processed WASM file for deployment
 
-## Quick Start
+**Note**: Turso canisters use the standard `wasm32-unknown-unknown` target and don't require `wasi2ic` processing.
 
-### 1. Create migration files
+## Usage
 
-Create a `migrations` directory in your project root and add SQL files:
+### 1. Create Migration Files
 
-```
-migrations/
-├── 001_initial.sql
-├── 002_add_users.sql
-└── 003_add_indexes.sql
-```
+Create a `migrations/` directory with SQL files. Each migration should be:
+- **Numbered sequentially** (e.g., `000_initial.sql`, `001_add_users.sql`)
+- **Idempotent when possible** (use `IF NOT EXISTS` clauses)
+- **Forward-only** (this library doesn't support rollbacks)
 
-Example migration file (`migrations/001_initial.sql`):
+Example migration file:
+
 ```sql
-CREATE TABLE users (
+-- migrations/000_initial.sql
+CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT NOT NULL UNIQUE,
-    email TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    name TEXT NOT NULL,
+    email TEXT
 );
 ```
 
-### 2. Set up build.rs
+### 2. Set Up build.rs
 
-Create a `build.rs` file in your project root:
+Use the Builder to configure discovery of migrations and seeds at compile time:
 
 ```rust
 fn main() {
-    // This will embed all SQL files from the migrations directory
-    ic_sql_migrate::list(Some("migrations")).unwrap();
+    ic_sql_migrate::Builder::new()
+        .with_migrations_dir("migrations")
+        .with_seeds_dir("src/seeds")
+        .build()
+        .unwrap();
 }
 ```
 
-### 3. Use in your canister
+The Builder automatically handles missing directories by generating empty arrays.
 
-#### SQLite Example (with ic-rusqlite):
+### 3. Use in Your Canister
+
+#### SQLite Example
 
 ```rust
 use ic_cdk::{init, post_upgrade, pre_upgrade};
 use ic_rusqlite::{close_connection, with_connection, Connection};
 
-// Include all migrations at compile time
-static MIGRATIONS: &[ic_sql_migrate::Migration] = ic_sql_migrate::include!();
+mod seeds;
 
-fn run_migrations() {
+static MIGRATIONS: &[ic_sql_migrate::Migration] = ic_sql_migrate::include_migrations!();
+
+fn run_migrations_and_seeds() {
     with_connection(|mut conn| {
         let conn: &mut Connection = &mut conn;
-        ic_sql_migrate::sqlite::up(conn, MIGRATIONS).unwrap();
+        ic_sql_migrate::sqlite::migrate(conn, MIGRATIONS).unwrap();
+        ic_sql_migrate::sqlite::seed(conn, seeds::SEEDS).unwrap();
     });
 }
 
 #[init]
 fn init() {
-    run_migrations();
+    run_migrations_and_seeds();
 }
 
 #[pre_upgrade]
@@ -190,64 +165,267 @@ fn pre_upgrade() {
 
 #[post_upgrade]
 fn post_upgrade() {
-    run_migrations();
+    run_migrations_and_seeds();
 }
 ```
 
-#### Turso Example:
+#### Turso Example
 
 ```rust
 use ic_cdk::{init, post_upgrade, pre_upgrade};
 use turso::Connection;
-use std::cell::RefCell;
 
-static MIGRATIONS: &[ic_sql_migrate::Migration] = ic_sql_migrate::include!();
+mod seeds;
+
+static MIGRATIONS: &[ic_sql_migrate::Migration] = ic_sql_migrate::include_migrations!();
 
 thread_local! {
     static CONNECTION: RefCell<Option<Connection>> = const { RefCell::new(None) };
 }
 
 async fn get_connection() -> Connection {
-    // Initialize or return existing connection
-    // See examples/turso for complete implementation
+    if let Some(conn) = CONNECTION.with_borrow(|c| c.clone()) {
+        conn
+    } else {
+        // Initialize connection
+        init_db().await
+    }
 }
 
-async fn run_migrations() {
+async fn run_migrations_and_seeds() {
     let mut conn = get_connection().await;
-    ic_sql_migrate::turso::up(&mut conn, MIGRATIONS).await.unwrap();
+    ic_sql_migrate::turso::migrate(&mut conn, MIGRATIONS).await.unwrap();
+    ic_sql_migrate::turso::seed(&mut conn, seeds::SEEDS).await.unwrap();
 }
 
 #[init]
 async fn init() {
-    // Initialize memory/storage (see examples)
-    run_migrations().await;
-}
-
-#[pre_upgrade]
-fn pre_upgrade() {
-    CONNECTION.with_borrow_mut(|c| *c = None);
+    run_migrations_and_seeds().await;
 }
 
 #[post_upgrade]
 async fn post_upgrade() {
-    // Re-initialize memory/storage
-    run_migrations().await;
+    run_migrations_and_seeds().await;
 }
+```
+
+## Data Seeding
+
+In addition to schema migrations, this library supports data seeding using Rust functions. Seeds are useful for populating initial data, test data, or reference data.
+
+### Creating Seed Files
+
+Create seed files in the `src/seeds/` directory (or a custom directory specified in `build.rs`). Each seed file is a regular Rust module (`.rs` file) that exports a `seed` function.
+
+Seed files are executed in alphabetical order by filename, so use a sortable prefix:
+- `src/seeds/seed_001_initial_users.rs`
+- `src/seeds/seed_002_categories.rs`
+
+### SQLite Seed Example
+
+**File: `src/seeds/seed_001_initial_users.rs`**
+
+```rust
+use ic_sql_migrate::MigrateResult;
+use ic_rusqlite::Connection;
+
+pub fn seed(conn: &Connection) -> MigrateResult<()> {
+    conn.execute(
+        "INSERT INTO users (name, email) VALUES ('Alice', 'alice@example.com')",
+        [],
+    )?;
+    conn.execute(
+        "INSERT INTO users (name, email) VALUES ('Bob', 'bob@example.com')",
+        [],
+    )?;
+    Ok(())
+}
+```
+
+### Turso Seed Example
+
+**File: `src/seeds/seed_001_initial_users.rs`**
+
+```rust
+use ic_sql_migrate::MigrateResult;
+use turso::Connection;
+use std::pin::Pin;
+use std::future::Future;
+
+pub fn seed(conn: &Connection) -> Pin<Box<dyn Future<Output = MigrateResult<()>> + Send>> {
+    let conn = conn.clone();
+    Box::pin(async move {
+        conn.execute(
+            "INSERT INTO users (name, email) VALUES ('Alice', 'alice@example.com')",
+            (),
+        ).await?;
+        Ok(())
+    })
+}
+```
+
+### Using Seeds in Your Canister
+
+**Step 1: Add the seeds module to your `src/lib.rs`:**
+
+```rust
+mod seeds;  // This is auto-generated by the build script
+```
+
+**Step 2: Use seeds in your lifecycle functions (see examples above)**
+
+### Seed Best Practices
+
+1. **Naming Convention**: Use sequential numbering with descriptive names (e.g., `seed_001_initial_users.rs`)
+2. **One Seed Per File**: Each seed file should contain a single `pub fn seed()` function
+3. **Part of Source Tree**: Seeds are in `src/seeds/`, giving you full IDE support and access to your app code
+4. **Import from Your App**: You can import types, functions, and modules from your application using `crate::`
+5. **Forward-Only**: Seeds do not support rollbacks - once applied, they remain
+6. **Idempotent Functions**: Write seed functions that can safely run multiple times if needed
+7. **Alphabetical Order**: Seeds are executed alphabetically by filename
+8. **Run After Migrations**: Seeds always execute after migrations to ensure schema is ready
+
+## API Reference
+
+### Core Functions
+
+#### Migrations
+
+**For SQLite:**
+```rust
+pub fn migrate(conn: &mut rusqlite::Connection, migrations: &[Migration]) -> MigrateResult<()>
+```
+Executes all pending migrations synchronously.
+
+**For Turso:**
+```rust
+pub async fn migrate(conn: &mut turso::Connection, migrations: &[Migration]) -> MigrateResult<()>
+```
+Executes all pending migrations asynchronously.
+
+#### Seeds
+
+**For SQLite:**
+```rust
+pub fn seed(conn: &mut rusqlite::Connection, seeds: &[Seed]) -> MigrateResult<()>
+```
+Executes all pending seeds synchronously.
+
+**For Turso:**
+```rust
+pub async fn seed(conn: &mut turso::Connection, seeds: &[Seed]) -> MigrateResult<()>
+```
+Executes all pending seeds asynchronously.
+
+### Build Script
+
+#### `Builder::new()`
+
+Creates a new builder with default settings.
+
+```rust
+// Use defaults (migrations/ and src/seeds/)
+ic_sql_migrate::Builder::new().build().unwrap();
+
+// Custom directories
+ic_sql_migrate::Builder::new()
+    .with_migrations_dir("db/migrations")
+    .with_seeds_dir("src/db/seeds")
+    .build()
+    .unwrap();
+```
+
+**Note**: Missing directories are handled automatically - they generate empty arrays.
+
+### Macros
+
+#### `ic_sql_migrate::include_migrations!()`
+
+Includes all migrations discovered by the Builder at compile time.
+
+```rust
+static MIGRATIONS: &[ic_sql_migrate::Migration] = ic_sql_migrate::include_migrations!();
+```
+
+#### `ic_sql_migrate::seeds!()`
+
+Helper macro to manually create a static array of seeds (for advanced use cases).
+
+```rust
+static SEEDS: &[ic_sql_migrate::Seed] = ic_sql_migrate::seeds![
+    Seed::new("001_users", my_seed_fn),
+];
+```
+
+**Note:** In most cases, seeds are auto-discovered from `src/seeds/` and accessed via the generated `mod seeds` module.
+
+### Types
+
+#### `Migration`
+
+```rust
+pub struct Migration {
+    pub id: &'static str,    // Unique identifier (filename without extension)
+    pub sql: &'static str,   // SQL statements to execute
+}
+```
+
+#### `Seed`
+
+```rust
+pub struct Seed {
+    pub id: &'static str,          // Unique identifier
+    pub seed_fn: SeedFn,           // Function to execute
+}
+```
+
+#### `Error`
+
+Custom error type that wraps database-specific errors and migration/seed failures.
+
+### Database Schema
+
+The library automatically creates these tracking tables:
+
+**Migrations Table:**
+```sql
+CREATE TABLE _migrations (
+    id TEXT PRIMARY KEY,
+    applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)
+```
+
+**Seeds Table:**
+```sql
+CREATE TABLE _seeds (
+    id TEXT PRIMARY KEY,
+    applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)
 ```
 
 ## How It Works
 
-1. **Build Time**: The `list()` function in `build.rs` scans your migrations directory and generates code to embed all SQL files into your canister binary.
+1. **Build Time**: `Builder` in `build.rs` scans your migrations and seeds directories
+   - Migrations: SQL files embedded as static strings into your canister binary
+   - Seeds: Rust modules discovered and auto-generated into `src/seeds/mod.rs` with a `SEEDS` constant
 
-2. **WASI to IC Conversion**: The `wasi2ic` tool converts WASI-specific function calls to IC-compatible polyfills, allowing the WASM binary to run on the Internet Computer.
+2. **WASI to IC Conversion**: The `wasi2ic` tool converts WASI-specific function calls to IC-compatible polyfills (SQLite only)
 
 3. **Canister Init/Upgrade**:
-   - On `init`: Runs all migrations to set up the database schema
-   - On `post_upgrade`: Runs any new migrations added since the last deployment
+   - On `init`: Calls `migrate()` to set up the database schema, then calls `seed()` to populate initial data
+   - On `post_upgrade`: Calls `migrate()` and `seed()` to apply any new migrations and seeds
 
-4. **Migration Tracking**: A `_migrations` table is automatically created to track which migrations have been applied, preventing duplicate execution.
+4. **Migration Tracking**: 
+   - A `_migrations` table is automatically created to track which migrations have been applied
+   - Pending migrations are executed in alphabetical order within a transaction
+   - Each successful migration is recorded to prevent duplicate execution
 
-5. **Transaction Safety**: All pending migrations run in a single transaction. If any migration fails, all changes are rolled back.
+5. **Seed Tracking**: 
+   - A `_seeds` table is automatically created to track which seeds have been applied
+   - Pending seeds are executed in alphabetical order within transactions
+   - Each successful seed is recorded to prevent duplicate execution
+
+6. **Transaction Safety**: All pending migrations and seeds run in transactions. If any operation fails, changes are rolled back, ensuring data consistency.
 
 ## Migration Best Practices
 
@@ -261,12 +439,45 @@ async fn post_upgrade() {
 
 5. **Test Locally**: Always test migrations using `dfx deploy --local` before mainnet deployment
 
+6. **Document Changes**: Include comments in your migration files explaining what each migration does
+
+## Troubleshooting
+
+### "Both features enabled" error
+
+You can only use one database backend at a time. Ensure exactly one of `sqlite` or `turso` is enabled in your `Cargo.toml`.
+
+### Migrations not found
+
+Ensure your migrations directory exists and contains `.sql` files, and that `build.rs` is properly configured to point to it.
+
+### "wasi2ic: command not found" 
+
+Install the `wasi2ic` tool:
+```bash
+cargo install wasi2ic
+```
+
+### Migration failures
+
+Check the canister logs with `dfx canister logs <canister_name>` for detailed error messages. Common issues:
+- Invalid SQL syntax in migration files
+- Trying to create tables that already exist (use `IF NOT EXISTS`)
+- Foreign key constraint violations
+
+### Seeds not executing
+
+Verify:
+- Seed files are in the `src/seeds/` directory (or configured directory)
+- Each seed file exports a `pub fn seed()` function
+- The module is declared in your canister code: `mod seeds;`
+
 ## Examples
 
 Complete working examples are available in the repository:
 
-- [`examples/sqlite`](https://github.com/kristoferlund/ic-sql-migrate/tree/main/examples/sqlite) - ICP canister with SQLite
-- [`examples/turso`](https://github.com/kristoferlund/ic-sql-migrate/tree/main/examples/turso) - ICP canister with Turso
+- [`examples/sqlite`](../../examples/sqlite) - Advanced example with the Chinook database and complex queries
+- [`examples/turso`](../../examples/turso) - Turso integration example with basic migrations
 
 ### Running the SQLite Example
 
@@ -274,74 +485,17 @@ Complete working examples are available in the repository:
 cd examples/sqlite
 dfx start --clean
 dfx deploy
-dfx canister call sqlite run '()'
+dfx canister call sqlite-example verify_migrations
 ```
 
-## API Reference
+### Running the Turso Example
 
-### Core Functions
-
-#### For SQLite
-```rust
-pub fn up(conn: &mut rusqlite::Connection, migrations: &[Migration]) -> MigrateResult<()>
+```bash
+cd examples/turso
+dfx start --clean
+dfx deploy
+dfx canister call turso run
 ```
-Executes all pending migrations synchronously.
-
-#### For Turso
-```rust
-pub async fn up(conn: &mut turso::Connection, migrations: &[Migration]) -> MigrateResult<()>
-```
-Executes all pending migrations asynchronously.
-
-### Build Script Function
-
-```rust
-pub fn list(migrations_dir_name: Option<&str>) -> std::io::Result<()>
-```
-Discovers and embeds migration files at compile time. Call this in `build.rs`.
-
-### Macros
-
-#### `ic_sql_migrate::include!()`
-Includes all migrations discovered by `list()` at compile time.
-
-### Types
-
-#### `Migration`
-```rust
-pub struct Migration {
-    pub id: &'static str,    // Unique identifier (filename without extension)
-    pub sql: &'static str,   // SQL statements to execute
-}
-```
-
-#### `Error`
-Custom error type that wraps database-specific errors and migration failures.
-
-## Migration Table Schema
-
-The library automatically creates this table:
-
-```sql
-CREATE TABLE _migrations (
-    id TEXT PRIMARY KEY,
-    applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-)
-```
-
-## Troubleshooting
-
-### Library doesn't compile / "module not found" errors
-You **must** enable either the `sqlite` or `turso` feature in your `Cargo.toml`. The library has no default features and will not work without explicitly selecting a database backend.
-
-### "Both features enabled" error
-You can only use one database backend at a time. Remove one of the features.
-
-### Migrations not found
-Ensure your migrations directory exists and contains `.sql` files, and that `build.rs` is properly configured.
-
-### Migration failures
-Check the canister logs with `dfx canister logs <canister_name>` for detailed error messages.
 
 ## Contributing
 
@@ -354,7 +508,3 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Author
 
 Kristofer Lund
-
-## Acknowledgments
-
-Built specifically for the Internet Computer ecosystem to provide reliable database migrations for canisters using SQL databases.

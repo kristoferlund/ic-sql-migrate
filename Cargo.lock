@@ -493,6 +493,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "equivalent"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
+
+[[package]]
 name = "errno"
 version = "0.3.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -971,21 +977,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "indexmap"
+version = "2.11.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4b0f83760fb341a774ed326568e19f5a863af4a952def8c39f9ab92fd95b88e5"
+dependencies = [
+ "equivalent",
+ "hashbrown",
+]
+
+[[package]]
 name = "inout"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "879f10e63c20629ecabbb64a8010319738c66a5cd0c29b02d63d272b03751d01"
 dependencies = [
  "generic-array",
-]
-
-[[package]]
-name = "intrusive-collections"
-version = "0.9.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "189d0897e4cbe8c75efedf3502c18c887b05046e59d28404d4d8e46cbc4d1e86"
-dependencies = [
- "memoffset",
 ]
 
 [[package]]
@@ -1135,15 +1142,6 @@ name = "memchr"
 version = "2.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a282da65faaf38286cf3be983213fcf1d2e2a58700e808f83f4ea9a4804bc0"
-
-[[package]]
-name = "memoffset"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "488016bfae457b036d996092f6cb448677611ce4449e970ceaf42695203f218a"
-dependencies = [
- "autocfg",
-]
 
 [[package]]
 name = "miette"
@@ -1598,12 +1596,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sha1_smol"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbfa15b3dddfee50a0fff136974b3e1bde555604ba463834a7eb7deb6417705d"
-
-[[package]]
 name = "sha2"
 version = "0.10.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1904,9 +1896,9 @@ dependencies = [
 
 [[package]]
 name = "turso"
-version = "0.2.2"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51e6ac76127c62dd5750701c70a15205bbcd6e5e1b4c7e7fac14df77b6f862b8"
+checksum = "a0de35f5541a6259f0fd7d6d3d8e90ec712aaed45f422d847082794d9941e026"
 dependencies = [
  "thiserror 2.0.16",
  "turso_core",
@@ -1922,14 +1914,15 @@ dependencies = [
  "ic-sql-migrate",
  "ic-stable-structures",
  "ic-wasi-polyfill",
+ "tokio",
  "turso",
 ]
 
 [[package]]
 name = "turso_core"
-version = "0.2.2"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7cd76d6283571e7e3f2b45d7d0236d5af91c4564c34608727dff49d91a6ffff1"
+checksum = "506e8e258afe712da84c41f6e83af9311c52d53d9ec948f0d35d861205915af8"
 dependencies = [
  "aegis",
  "aes",
@@ -1943,7 +1936,6 @@ dependencies = [
  "fallible-iterator",
  "getrandom 0.2.16",
  "hex",
- "intrusive-collections",
  "io-uring",
  "julian_day_converter",
  "libc",
@@ -1962,21 +1954,21 @@ dependencies = [
  "strum",
  "strum_macros",
  "tempfile",
- "thiserror 2.0.16",
+ "thiserror 1.0.69",
  "tracing",
  "turso_ext",
  "turso_macros",
  "turso_parser",
- "twox-hash",
+ "turso_sqlite3_parser",
  "uncased",
  "uuid",
 ]
 
 [[package]]
 name = "turso_ext"
-version = "0.2.2"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3fad6b0643d60caa84e3f46bc67f3c4e079f4399831e58333219570372099e7b"
+checksum = "4607d2af3061fec7cff72ee93d1d046b14939607f44d448e291163c4074d7e56"
 dependencies = [
  "chrono",
  "getrandom 0.3.3",
@@ -1985,9 +1977,9 @@ dependencies = [
 
 [[package]]
 name = "turso_macros"
-version = "0.2.2"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ab7d018ad8f58bf3423263243e65f89bad1dc80b1b8bf697f08613e9e339656"
+checksum = "a3b402e44f599a123582fa65c42ae22b9b452cb3503b0b25cb4e8ccab81f03e8"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1996,25 +1988,34 @@ dependencies = [
 
 [[package]]
 name = "turso_parser"
-version = "0.2.2"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cfafbfb62c14b8d4ff851abf2559dda504caeb59958cfff936c1fbfd66248569"
+checksum = "a54c455952a322829230b8b00be80def858e08bea1ecbf7cff9680098a98b84f"
 dependencies = [
  "bitflags",
  "miette",
  "strum",
  "strum_macros",
- "thiserror 2.0.16",
+ "thiserror 1.0.69",
  "turso_macros",
 ]
 
 [[package]]
-name = "twox-hash"
-version = "2.1.2"
+name = "turso_sqlite3_parser"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ea3136b675547379c4bd395ca6b938e5ad3c3d20fad76e7fe85f9e0d011419c"
+checksum = "d9202f9e26319269c450bd9404ad36dfef53e626894c0f0991da7feec6a55a6a"
 dependencies = [
- "rand 0.9.2",
+ "bitflags",
+ "cc",
+ "fallible-iterator",
+ "indexmap",
+ "log",
+ "memchr",
+ "miette",
+ "smallvec",
+ "strum",
+ "strum_macros",
 ]
 
 [[package]]
@@ -2086,7 +2087,6 @@ checksum = "2f87b8aa10b915a06587d0dec516c282ff295b475d94abf425d62b57710070a2"
 dependencies = [
  "getrandom 0.3.3",
  "js-sys",
- "sha1_smol",
  "wasm-bindgen",
 ]
 

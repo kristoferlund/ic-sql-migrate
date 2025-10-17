@@ -20,7 +20,7 @@
 //! fn run_migrations() {
 //!     with_connection(|mut conn| {
 //!         let conn: &mut Connection = &mut conn;
-//!         ic_sql_migrate::sqlite::up(conn, MIGRATIONS).unwrap();
+//!         ic_sql_migrate::sqlite::migrate(conn, MIGRATIONS).unwrap();
 //!     });
 //! }
 //!
@@ -43,7 +43,7 @@
 use rusqlite::Connection;
 use std::collections::HashSet;
 
-use crate::{Error, MigrateResult, Migration};
+use crate::{Error, MigrateResult, Migration, Seed};
 
 /// Ensures the migrations tracking table exists in the database.
 ///
@@ -113,11 +113,11 @@ fn get_applied_migrations(conn: &Connection) -> MigrateResult<HashSet<String>> {
 /// fn apply_migrations() {
 ///     with_connection(|mut conn| {
 ///         let conn: &mut Connection = &mut conn;
-///         sqlite::up(conn, MIGRATIONS).unwrap();
+///         sqlite::migrate(conn, MIGRATIONS).unwrap();
 ///     });
 /// }
 /// ```
-pub fn up(conn: &mut Connection, migrations: &[Migration]) -> MigrateResult<()> {
+pub fn migrate(conn: &mut Connection, migrations: &[Migration]) -> MigrateResult<()> {
     ensure_migrations_table(conn)?;
     let applied_migrations = get_applied_migrations(conn)?;
 
@@ -148,6 +148,111 @@ pub fn up(conn: &mut Connection, migrations: &[Migration]) -> MigrateResult<()> 
 
     // Commit all migrations atomically
     tx.commit()?;
+
+    Ok(())
+}
+
+/// Ensures the seeds tracking table exists in the database.
+///
+/// Creates a `_seeds` table if it doesn't exist, which tracks:
+/// - `id`: The unique identifier of each applied seed
+/// - `applied_at`: Timestamp when the seed was applied
+fn ensure_seeds_table(conn: &mut Connection) -> MigrateResult<()> {
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS _seeds (
+            id TEXT PRIMARY KEY,
+            applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )",
+        [],
+    )?;
+    Ok(())
+}
+
+/// Retrieves the set of already applied seed IDs from the database.
+fn get_applied_seeds(conn: &Connection) -> MigrateResult<HashSet<String>> {
+    let mut statement = conn.prepare("SELECT id FROM _seeds")?;
+
+    let seed_ids = statement.query_map([], |row| row.get::<_, String>(0))?;
+
+    let mut applied_set = HashSet::new();
+    for id in seed_ids.into_iter().flatten() {
+        applied_set.insert(id);
+    }
+
+    Ok(applied_set)
+}
+
+/// Executes all pending seeds in order.
+///
+/// This function:
+/// 1. Ensures the seeds tracking table exists
+/// 2. Identifies which seeds have already been applied
+/// 3. Executes pending seeds in the order they appear in the slice
+/// 4. Records each seed as applied
+///
+/// All seeds are executed within a single transaction for atomicity.
+/// If any seed fails, all changes are rolled back.
+///
+/// # Arguments
+/// * `conn` - Mutable reference to the SQLite connection
+/// * `seeds` - Slice of seeds to apply in order
+///
+/// # Returns
+/// * `Ok(())` - If all pending seeds were successfully applied or if there were no pending seeds
+/// * `Err(Error)` - If any seed failed to execute
+///
+/// # Errors
+/// Returns an error if:
+/// - Database operations fail
+/// - Seed function returns an error
+/// - Transaction cannot be committed
+///
+/// # Example
+/// ```ignore
+/// use ic_rusqlite::{with_connection, Connection};
+/// use ic_sql_migrate::{Seed, sqlite};
+///
+/// fn seed_users(conn: &mut Connection) -> ic_sql_migrate::MigrateResult<()> {
+///     conn.execute("INSERT INTO users (name) VALUES ('Alice')", [])?;
+///     Ok(())
+/// }
+///
+/// static SEEDS: &[Seed] = &[
+///     Seed::new("001_users", seed_users),
+/// ];
+///
+/// fn apply_seeds() {
+///     with_connection(|mut conn| {
+///         let conn: &mut Connection = &mut conn;
+///         sqlite::seed(conn, SEEDS).unwrap();
+///     });
+/// }
+/// ```
+pub fn seed(conn: &mut Connection, seeds: &[Seed]) -> MigrateResult<()> {
+    ensure_seeds_table(conn)?;
+    let applied_seeds = get_applied_seeds(conn)?;
+
+    let pending_seeds: Vec<&Seed> = seeds
+        .iter()
+        .filter(|s| !applied_seeds.contains(s.id))
+        .collect();
+
+    if pending_seeds.is_empty() {
+        return Ok(());
+    }
+
+    for seed in pending_seeds {
+        let tx = conn.transaction()?;
+
+        (seed.seed_fn)(&tx).map_err(|e| Error::MigrationFailed {
+            id: seed.id.to_string(),
+            message: e.to_string(),
+        })?;
+
+        tx.execute("INSERT INTO _seeds(id) VALUES (?)", [seed.id])?;
+
+        tx.commit()?;
+    }
 
     Ok(())
 }
@@ -193,7 +298,7 @@ mod tests {
         ];
 
         // Run migrations
-        up(&mut conn, migrations).unwrap();
+        migrate(&mut conn, migrations).unwrap();
 
         // Verify migrations were applied
         let applied = get_applied_migrations(&conn).unwrap();
@@ -221,8 +326,8 @@ mod tests {
         )];
 
         // Run migrations twice
-        up(&mut conn, migrations).unwrap();
-        up(&mut conn, migrations).unwrap();
+        migrate(&mut conn, migrations).unwrap();
+        migrate(&mut conn, migrations).unwrap();
 
         // Should only be applied once
         let count: i64 = conn
@@ -244,15 +349,12 @@ mod tests {
             Migration::new("002_invalid", "INVALID SQL STATEMENT;"),
         ];
 
-        // Run migrations - should fail on second one
-        let result = up(&mut conn, migrations);
+        let result = migrate(&mut conn, migrations);
         assert!(result.is_err());
 
-        // Verify first migration was not committed due to transaction rollback
         let applied = get_applied_migrations(&conn).unwrap();
         assert!(applied.is_empty());
 
-        // Verify table was not created
         let count: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='test'",
@@ -261,5 +363,80 @@ mod tests {
             )
             .unwrap();
         assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_ensure_seeds_table() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        ensure_seeds_table(&mut conn).unwrap();
+
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='_seeds'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    fn seed_test_data(conn: &Connection) -> MigrateResult<()> {
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS test_users (id INTEGER PRIMARY KEY, name TEXT)",
+            [],
+        )?;
+        conn.execute("INSERT INTO test_users (name) VALUES ('Alice')", [])?;
+        conn.execute("INSERT INTO test_users (name) VALUES ('Bob')", [])?;
+        Ok(())
+    }
+
+    fn seed_more_data(conn: &Connection) -> MigrateResult<()> {
+        conn.execute("INSERT INTO test_users (name) VALUES ('Charlie')", [])?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_seed_execution() {
+        let mut conn = Connection::open_in_memory().unwrap();
+
+        let seeds = &[
+            Seed::new("001_initial", seed_test_data),
+            Seed::new("002_more", seed_more_data),
+        ];
+
+        seed(&mut conn, seeds).unwrap();
+
+        let applied = get_applied_seeds(&conn).unwrap();
+        assert!(applied.contains("001_initial"));
+        assert!(applied.contains("002_more"));
+
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM test_users", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 3);
+    }
+
+    #[test]
+    fn test_seed_idempotency() {
+        let mut conn = Connection::open_in_memory().unwrap();
+
+        let seeds = &[Seed::new("001_test", seed_test_data)];
+
+        seed(&mut conn, seeds).unwrap();
+        seed(&mut conn, seeds).unwrap();
+
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM _seeds WHERE id='001_test'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+
+        let user_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM test_users", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(user_count, 2);
     }
 }

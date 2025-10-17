@@ -1,4 +1,5 @@
 use ic_cdk::{init, post_upgrade, pre_upgrade, query, update};
+use ic_sql_migrate::{include_migrations, Migration};
 use ic_stable_structures::{
     memory_manager::{MemoryId, MemoryManager},
     DefaultMemoryImpl,
@@ -6,7 +7,7 @@ use ic_stable_structures::{
 use std::{cell::RefCell, path::Path};
 use turso::Connection;
 
-static MIGRATIONS: &[ic_sql_migrate::Migration] = ic_sql_migrate::include!();
+static MIGRATIONS: &[Migration] = include_migrations!();
 
 thread_local! {
     static CONNECTION: RefCell<Option<Connection>> = const { RefCell::new(None) };
@@ -56,7 +57,11 @@ fn mount_memory_files() {
 
         // mount virtual memory as file for faster DB operations
         let memory = m.get(MemoryId::new(MOUNTED_MEMORY_ID));
-        ic_wasi_polyfill::mount_memory_file(DB_FILE_NAME, Box::new(memory));
+        ic_wasi_polyfill::mount_memory_file(
+            DB_FILE_NAME,
+            Box::new(memory),
+            ic_wasi_polyfill::MountedFileSizePolicy::MemoryPages,
+        );
 
         // remove lock if it exists
         let _ = std::fs::remove_dir_all(format!("{DB_FILE_NAME}.lock"));
@@ -72,7 +77,7 @@ fn mount_memory_files() {
 
 async fn run_migrations() {
     let mut conn = get_connection().await;
-    ic_sql_migrate::turso::up(&mut conn, MIGRATIONS)
+    ic_sql_migrate::turso::migrate(&mut conn, MIGRATIONS)
         .await
         .unwrap();
 }
@@ -226,25 +231,4 @@ fn generate_random_data(seed: u32, size: usize) -> String {
     }
 
     result
-}
-
-mod benches {
-    use super::*;
-    use canbench_rs::{bench, bench_fn, BenchResult};
-
-    #[bench(raw)]
-    fn test1_inserting_1000_records_with_1KB_data_each() -> BenchResult {
-        // do some preparation outside of the main estimation part
-        // ...
-
-        // only estimate closure contents
-        let res = bench_fn(|| {
-            perf1();
-        });
-
-        // do some post processing if necessary
-        // ...
-
-        res
-    }
 }
